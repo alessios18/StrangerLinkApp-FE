@@ -1,14 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:stranger_link_app/models/profile.dart';
 import 'dart:io';
 
-import '../blocs/profile/profile_bloc.dart';
-import '../blocs/profile/profile_event.dart';
-import '../blocs/profile/profile_state.dart';
-import '../models/profile_model.dart';
-import '../widgets/interest_chip.dart';
-import '../widgets/custom_text_field.dart';
+import '../../blocs/profile/profile_bloc.dart';
+import '../../blocs/auth/auth_bloc.dart';
 
 class ProfileScreen extends StatefulWidget {
   final String? errorMessage;
@@ -34,11 +31,26 @@ class _ProfileScreenState extends State<ProfileScreen> {
   final ImagePicker _picker = ImagePicker();
 
   final List<String> _genderOptions = ['Male', 'Female', 'Non-binary', 'Prefer not to say'];
+  final List<String> _countrySuggestions = [
+    'Italy', 'United States', 'United Kingdom', 'Canada', 'Australia',
+    'Germany', 'France', 'Spain', 'Brazil', 'Japan', 'China', 'India'
+  ];
+
+  bool _isEditing = false;
 
   @override
   void initState() {
     super.initState();
     context.read<ProfileBloc>().add(FetchProfile());
+
+    // Show error message if provided
+    if (widget.errorMessage != null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(widget.errorMessage!)),
+        );
+      });
+    }
   }
 
   @override
@@ -82,20 +94,24 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   void _updateProfile() {
     if (_formKey.currentState!.validate()) {
-      final profile = ProfileModel(
+      final profile = Profile(
         displayName: _displayNameController.text,
-        age: int.tryParse(_ageController.text) ?? 0,
+        age: int.tryParse(_ageController.text),
         country: _countryController.text,
-        gender: _selectedGender ?? '',
+        gender: _selectedGender,
         bio: _bioController.text,
         interests: _interests,
       );
 
       context.read<ProfileBloc>().add(UpdateProfile(profile: profile));
+
+      setState(() {
+        _isEditing = false;
+      });
     }
   }
 
-  void _populateForm(ProfileModel profile) {
+  void _populateForm(Profile profile) {
     _displayNameController.text = profile.displayName ?? '';
     _ageController.text = profile.age?.toString() ?? '';
     _countryController.text = profile.country ?? '';
@@ -110,6 +126,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
     });
   }
 
+  void _logout() {
+    context.read<AuthBloc>().add(LogoutRequested());
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -117,12 +137,20 @@ class _ProfileScreenState extends State<ProfileScreen> {
         title: const Text('Profile'),
         actions: [
           IconButton(
-            icon: const Icon(Icons.logout),
+            icon: Icon(_isEditing ? Icons.close : Icons.edit),
             onPressed: () {
-              // Add logout functionality
-              // context.read<AuthBloc>().add(LogoutRequested());
-              // Navigator.of(context).pushReplacementNamed('/login');
+              setState(() {
+                _isEditing = !_isEditing;
+                if (!_isEditing) {
+                  // Reset form if canceling edit
+                  context.read<ProfileBloc>().add(FetchProfile());
+                }
+              });
             },
+          ),
+          IconButton(
+            icon: const Icon(Icons.logout),
+            onPressed: _logout,
           ),
         ],
       ),
@@ -143,24 +171,202 @@ class _ProfileScreenState extends State<ProfileScreen> {
             return const Center(child: CircularProgressIndicator());
           } else if (state is ProfileLoaded) {
             // Populate form when profile is loaded
-            if (_displayNameController.text.isEmpty) {
+            if (_displayNameController.text.isEmpty || !_isEditing) {
               _populateForm(state.profile);
             }
 
-            return _buildProfileForm(context, state.profile);
+            return _isEditing
+                ? _buildProfileForm(context, state.profile)
+                : _buildProfileView(context, state.profile);
           } else if (state is ProfileError) {
             return Center(
-              child: Text('Error: ${state.message}'),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Text('Error: ${state.message}'),
+                  ElevatedButton(
+                    onPressed: () => context.read<ProfileBloc>().add(FetchProfile()),
+                    child: const Text('Retry'),
+                  ),
+                ],
+              ),
             );
           }
 
           return const Center(child: CircularProgressIndicator());
         },
       ),
+      floatingActionButton: _isEditing ? FloatingActionButton(
+        onPressed: _updateProfile,
+        child: const Icon(Icons.save),
+      ) : null,
     );
   }
 
-  Widget _buildProfileForm(BuildContext context, ProfileModel profile) {
+  Widget _buildProfileView(BuildContext context, Profile profile) {
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(16.0),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Center(
+            child: GestureDetector(
+              onTap: _isEditing ? _pickImage : null,
+              child: Stack(
+                children: [
+                  CircleAvatar(
+                    radius: 60,
+                    backgroundImage: profile.profileImageUrl != null
+                        ? NetworkImage(profile.profileImageUrl!)
+                        : null,
+                    child: profile.profileImageUrl == null
+                        ? const Icon(Icons.person, size: 60)
+                        : null,
+                  ),
+                  if (_isEditing)
+                    Positioned(
+                      bottom: 0,
+                      right: 0,
+                      child: Container(
+                        padding: const EdgeInsets.all(4),
+                        decoration: BoxDecoration(
+                          color: Theme.of(context).primaryColor,
+                          shape: BoxShape.circle,
+                        ),
+                        child: const Icon(
+                          Icons.camera_alt,
+                          color: Colors.white,
+                          size: 20,
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: 24),
+
+          // Display name
+          _buildInfoTile(
+            title: 'Display Name',
+            value: profile.displayName ?? 'Not set',
+            icon: Icons.person,
+          ),
+
+          // Age
+          _buildInfoTile(
+            title: 'Age',
+            value: profile.age?.toString() ?? 'Not set',
+            icon: Icons.cake,
+          ),
+
+          // Country
+          _buildInfoTile(
+            title: 'Country',
+            value: profile.country ?? 'Not set',
+            icon: Icons.location_on,
+          ),
+
+          // Gender
+          _buildInfoTile(
+            title: 'Gender',
+            value: profile.gender ?? 'Not set',
+            icon: Icons.people,
+          ),
+
+          // Bio
+          if (profile.bio != null && profile.bio!.isNotEmpty)
+            _buildBioTile(profile.bio!),
+
+          // Interests
+          if (profile.interests != null && profile.interests!.isNotEmpty)
+            _buildInterestsTile(profile.interests!),
+
+          const SizedBox(height: 16),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildInfoTile({required String title, required String value, required IconData icon}) {
+    return Card(
+      margin: const EdgeInsets.symmetric(vertical: 8),
+      child: ListTile(
+        leading: Icon(icon),
+        title: Text(title),
+        subtitle: Text(value),
+      ),
+    );
+  }
+
+  Widget _buildBioTile(String bio) {
+    return Card(
+      margin: const EdgeInsets.symmetric(vertical: 8),
+      child: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Row(
+              children: [
+                Icon(Icons.description),
+                SizedBox(width: 8),
+                Text(
+                  'Bio',
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            Text(bio),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildInterestsTile(List<String> interests) {
+    return Card(
+      margin: const EdgeInsets.symmetric(vertical: 8),
+      child: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Row(
+              children: [
+                Icon(Icons.interests),
+                SizedBox(width: 8),
+                Text(
+                  'Interests',
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            Wrap(
+              spacing: 8.0,
+              runSpacing: 4.0,
+              children: interests.map((interest) {
+                return Chip(
+                  label: Text(interest),
+                  backgroundColor: Theme.of(context).colorScheme.primaryContainer,
+                );
+              }).toList(),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildProfileForm(BuildContext context, Profile profile) {
     return SingleChildScrollView(
       padding: const EdgeInsets.all(16.0),
       child: Form(
@@ -171,32 +377,48 @@ class _ProfileScreenState extends State<ProfileScreen> {
             Center(
               child: GestureDetector(
                 onTap: _pickImage,
-                child: CircleAvatar(
-                  radius: 60,
-                  backgroundImage: _profileImage != null
-                      ? FileImage(_profileImage!)
-                      : (profile.profileImageUrl != null
-                      ? NetworkImage(profile.profileImageUrl!)
-                      : null) as ImageProvider<Object>?,
-                  child: (_profileImage == null && profile.profileImageUrl == null)
-                      ? const Icon(Icons.person, size: 60)
-                      : null,
+                child: Stack(
+                  children: [
+                    CircleAvatar(
+                      radius: 60,
+                      backgroundImage: _profileImage != null
+                          ? FileImage(_profileImage!)
+                          : (profile.profileImageUrl != null
+                          ? NetworkImage(profile.profileImageUrl!)
+                          : null) as ImageProvider<Object>?,
+                      child: (_profileImage == null && profile.profileImageUrl == null)
+                          ? const Icon(Icons.person, size: 60)
+                          : null,
+                    ),
+                    Positioned(
+                      bottom: 0,
+                      right: 0,
+                      child: Container(
+                        padding: const EdgeInsets.all(4),
+                        decoration: BoxDecoration(
+                          color: Theme.of(context).primaryColor,
+                          shape: BoxShape.circle,
+                        ),
+                        child: const Icon(
+                          Icons.camera_alt,
+                          color: Colors.white,
+                          size: 20,
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
               ),
             ),
-            const SizedBox(height: 10),
-            Center(
-              child: TextButton(
-                onPressed: _pickImage,
-                child: const Text('Change Profile Picture'),
-              ),
-            ),
             const SizedBox(height: 20),
+
+            // Display Name
             TextFormField(
               controller: _displayNameController,
               decoration: const InputDecoration(
                 labelText: 'Display Name',
                 border: OutlineInputBorder(),
+                prefixIcon: Icon(Icons.person),
               ),
               validator: (value) {
                 if (value != null && value.length > 50) {
@@ -206,11 +428,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
               },
             ),
             const SizedBox(height: 16),
+
+            // Age
             TextFormField(
               controller: _ageController,
               decoration: const InputDecoration(
                 labelText: 'Age',
                 border: OutlineInputBorder(),
+                prefixIcon: Icon(Icons.cake),
               ),
               keyboardType: TextInputType.number,
               validator: (value) {
@@ -231,19 +456,51 @@ class _ProfileScreenState extends State<ProfileScreen> {
               },
             ),
             const SizedBox(height: 16),
-            TextFormField(
-              controller: _countryController,
-              decoration: const InputDecoration(
-                labelText: 'Country',
-                border: OutlineInputBorder(),
-              ),
+
+            // Country
+            Autocomplete<String>(
+              optionsBuilder: (TextEditingValue textEditingValue) {
+                if (textEditingValue.text.isEmpty) {
+                  return const [];
+                }
+                return _countrySuggestions.where((country) =>
+                    country.toLowerCase().contains(textEditingValue.text.toLowerCase()));
+              },
+              onSelected: (String selection) {
+                _countryController.text = selection;
+              },
+              fieldViewBuilder: (
+                  BuildContext context,
+                  TextEditingController controller,
+                  FocusNode focusNode,
+                  VoidCallback onFieldSubmitted,
+                  ) {
+                // Sync the autocomplete controller with our stored controller
+                if (controller.text != _countryController.text) {
+                  controller.text = _countryController.text;
+                }
+
+                return TextFormField(
+                  controller: controller,
+                  focusNode: focusNode,
+                  onChanged: (value) => _countryController.text = value,
+                  decoration: const InputDecoration(
+                    labelText: 'Country',
+                    border: OutlineInputBorder(),
+                    prefixIcon: Icon(Icons.location_on),
+                  ),
+                );
+              },
             ),
             const SizedBox(height: 16),
+
+            // Gender
             DropdownButtonFormField<String>(
               value: _selectedGender,
               decoration: const InputDecoration(
                 labelText: 'Gender',
                 border: OutlineInputBorder(),
+                prefixIcon: Icon(Icons.people),
               ),
               items: _genderOptions.map((String gender) {
                 return DropdownMenuItem<String>(
@@ -258,12 +515,15 @@ class _ProfileScreenState extends State<ProfileScreen> {
               },
             ),
             const SizedBox(height: 16),
+
+            // Bio
             TextFormField(
               controller: _bioController,
               decoration: const InputDecoration(
                 labelText: 'Bio',
                 border: OutlineInputBorder(),
                 alignLabelWithHint: true,
+                prefixIcon: Icon(Icons.description),
               ),
               maxLines: 5,
               validator: (value) {
@@ -274,7 +534,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
               },
             ),
             const SizedBox(height: 16),
-            const Text('Interests', style: TextStyle(fontSize: 16)),
+
+            // Interests
+            const Text('Interests', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
             const SizedBox(height: 8),
             Row(
               children: [
@@ -284,6 +546,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     decoration: const InputDecoration(
                       labelText: 'Add interest',
                       border: OutlineInputBorder(),
+                      prefixIcon: Icon(Icons.interests),
                     ),
                     onFieldSubmitted: (_) => _addInterest(),
                   ),
@@ -292,6 +555,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 IconButton(
                   icon: const Icon(Icons.add),
                   onPressed: _addInterest,
+                  style: IconButton.styleFrom(
+                    backgroundColor: Theme.of(context).colorScheme.primary,
+                    foregroundColor: Theme.of(context).colorScheme.onPrimary,
+                  ),
                 ),
               ],
             ),
@@ -302,22 +569,28 @@ class _ProfileScreenState extends State<ProfileScreen> {
               children: _interests.map((interest) {
                 return Chip(
                   label: Text(interest),
-                  deleteIcon: const Icon(Icons.close),
+                  deleteIcon: const Icon(Icons.close, size: 18),
                   onDeleted: () => _removeInterest(interest),
                 );
               }).toList(),
             ),
             const SizedBox(height: 24),
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton(
-                onPressed: _updateProfile,
-                style: ElevatedButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(vertical: 16),
+
+            if (!_isEditing)
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  onPressed: () {
+                    setState(() {
+                      _isEditing = true;
+                    });
+                  },
+                  style: ElevatedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(vertical: 16),
+                  ),
+                  child: const Text('Edit Profile'),
                 ),
-                child: const Text('Save Profile'),
               ),
-            ),
           ],
         ),
       ),

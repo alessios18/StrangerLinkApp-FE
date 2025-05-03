@@ -1,13 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:provider/provider.dart';
+import 'package:stranger_link_app/repositories/profile_repository.dart';
 import 'package:stranger_link_app/screens/login/login_screen.dart';
 import 'blocs/auth/auth_bloc.dart';
-import 'blocs/auth/auth_event.dart';
-import 'blocs/auth/auth_state.dart';
 import 'repositories/auth_repository.dart';
-import 'screens/auth/login_screen.dart';
-import 'screens/auth/register_screen.dart';
 import 'screens/profile/profile_screen.dart';
 import 'services/storage_service.dart';
 
@@ -24,6 +21,8 @@ class MyApp extends StatelessWidget {
       providers: [
         RepositoryProvider<AuthRepository>(
           create: (context) => AuthRepository(),
+        ),RepositoryProvider<ProfileRepository>(
+          create: (context) => ProfileRepository(),
         ),
         // Aggiungi altri repository se necessario
       ],
@@ -45,7 +44,7 @@ class MyApp extends StatelessWidget {
           home: const AuthWrapper(),
           routes: {
             '/login': (context) => const LoginScreen(),
-            '/register': (context) => const RegisterScreen(),
+            // '/register': (context) => const RegisterScreen(),
             '/profile': (context) => const ProfileScreen(),
           },
         ),

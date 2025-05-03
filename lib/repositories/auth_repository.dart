@@ -5,7 +5,7 @@ import '../models/user.dart';
 import '../services/storage_service.dart';
 
 class AuthRepository {
-  final String baseUrl = 'http://10.0.2.2:8080/api';
+  final String baseUrl = 'http://localhost:8080/api';
   final StorageService _storageService = StorageService();
 
   Future<User?> getCurrentUser() async {
@@ -47,7 +47,7 @@ class AuthRepository {
         return User.fromJson(data);
       }
       return null;
-    } catch (_) {
+    } catch (e) {
       return null;
     }
   }
