@@ -1,15 +1,20 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:provider/provider.dart';
+import 'package:stranger_link_app/blocs/chat/chat_bloc.dart';
 import 'package:stranger_link_app/blocs/country/country_bloc.dart';
 import 'package:stranger_link_app/blocs/profile/profile_bloc.dart';
 import 'package:stranger_link_app/blocs/registration/register_bloc.dart';
 import 'package:stranger_link_app/blocs/search_preference/search_preference_bloc.dart';
+import 'package:stranger_link_app/repositories/chat_repository.dart';
 import 'package:stranger_link_app/repositories/country_repository.dart';
 import 'package:stranger_link_app/repositories/profile_repository.dart';
 import 'package:stranger_link_app/repositories/search_preference_repository.dart';
+import 'package:stranger_link_app/repositories/user_repository.dart';
+import 'package:stranger_link_app/screens/chat/chat_list_screen.dart';
 import 'package:stranger_link_app/screens/login/login_screen.dart';
 import 'package:stranger_link_app/screens/registration/registration_screen.dart';
+import 'package:stranger_link_app/screens/search/user_search_screen.dart';
 import 'blocs/auth/auth_bloc.dart';
 import 'repositories/auth_repository.dart';
 import 'screens/profile/profile_screen.dart';
@@ -36,6 +41,12 @@ class MyApp extends StatelessWidget {
         ),
         RepositoryProvider<SearchPreferenceRepository>(
           create: (context) => SearchPreferenceRepository(),
+        ),
+        RepositoryProvider<ChatRepository>(
+          create: (context) => ChatRepository(),
+        ),
+        RepositoryProvider<UserRepository>(
+          create: (context) => UserRepository(),
         ),
         // Aggiungi altri repository se necessario
       ],
@@ -66,6 +77,11 @@ class MyApp extends StatelessWidget {
               searchPreferenceRepository: context.read<SearchPreferenceRepository>(),
             ),
           ),
+          BlocProvider<ChatBloc>(
+            create: (context) => ChatBloc(
+              chatRepository: context.read<ChatRepository>(),
+            ),
+          ),
           // Aggiungi altri BLoC se necessario
         ],
         child: MaterialApp(
@@ -79,6 +95,8 @@ class MyApp extends StatelessWidget {
             '/login': (context) => const LoginScreen(),
             '/register': (context) => const RegisterScreen(),
             '/profile': (context) => const ProfileScreen(),
+            '/search': (context) => const UserSearchScreen(), // Add this line
+            '/chat': (context) => const ChatListScreen(),
           },
         ),
       ),
@@ -113,11 +131,18 @@ class AuthWrapper extends StatelessWidget {
               WidgetsBinding.instance.addPostFrameCallback((_) {
                 context.read<ProfileBloc>().add(const SetEditMode(isEditing: true));
               });
+            }else{
+              final chatRepository = context.read<ChatRepository>();
+              if (!chatRepository.isConnected) {
+                chatRepository.connect(state.user.id);
+              }
+              return ChatListScreen();
             }
 
             return const ProfileScreen();
 
           case AuthUnauthenticated():
+            context.read<ChatRepository>().disconnect();
             return const LoginScreen();
 
           case AuthFailure():
@@ -125,6 +150,7 @@ class AuthWrapper extends StatelessWidget {
             return LoginScreen(errorMessage: state.error);
 
           default:
+            context.read<ChatRepository>().disconnect();
             return const LoginScreen();
         }
       },

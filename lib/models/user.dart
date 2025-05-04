@@ -8,11 +8,12 @@ class User extends Equatable {
   final int id;
   final String username;
   final String email;
+  final String? profileImageUrl;
 
-  @JsonKey(name: 'created_at', fromJson: _dateTimeFromJson, toJson: _dateTimeToJson)
+  @JsonKey(name: 'createdAt', fromJson: _dateTimeFromJson, toJson: _dateTimeToJson)
   final DateTime createdAt;
 
-  @JsonKey(name: 'last_active', fromJson: _dateTimeFromJson, toJson: _dateTimeToJson)
+  @JsonKey(name: 'lastActive', fromJson: _dateTimeFromJson, toJson: _dateTimeToJson)
   final DateTime lastActive;
 
   const User({
@@ -21,6 +22,7 @@ class User extends Equatable {
     required this.email,
     required this.createdAt,
     required this.lastActive,
+    this.profileImageUrl
   });
 
   // Funzioni statiche per la conversione che gestiscono diversi tipi di input
