@@ -9,7 +9,10 @@ part of 'profile.dart';
 Profile _$ProfileFromJson(Map<String, dynamic> json) => Profile(
   displayName: json['displayName'] as String,
   age: (json['age'] as num?)?.toInt(),
-  country: json['country'] as String?,
+  country:
+      json['country'] == null
+          ? null
+          : Country.fromJson(json['country'] as Map<String, dynamic>),
   gender: json['gender'] as String?,
   bio: json['bio'] as String?,
   profileImageUrl: json['profileImageUrl'] as String?,

@@ -29,7 +29,8 @@ class RegisterBloc extends Bloc<RegisterEvent, RegisterState> {
       );
 
       if (user != null) {
-        emit(RegisterSuccess(user: user));
+        // Aggiorna lo stato con isNewRegistration = true
+        emit(RegisterSuccess(user: user, isNewRegistration: true));
       } else {
         emit(const RegisterFailure('Registrazione fallita. Riprova.'));
       }

@@ -111,19 +111,14 @@ class _RegisterScreenState extends State<RegisterScreen> {
                 ),
               );
             } else if (state is RegisterSuccess) {
-              // Aggiorna l'AuthBloc per riflettere che l'utente è autenticato
+              // Aggiorna l'AuthBloc
               context.read<AuthBloc>().add(AppStarted());
 
-              // Inizializza il ProfileBloc per caricare i dati del profilo
+              // Carica il profilo
               context.read<ProfileBloc>().add(FetchProfile());
+              // Imposta esplicitamente la modalità di modifica del profilo
+              context.read<ProfileBloc>().add(const SetEditMode(isEditing: true));
 
-              // Mostra un messaggio di benvenuto
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text('Registrazione completata! Completa il tuo profilo.'),
-                  backgroundColor: Colors.green,
-                ),
-              );
 
               // Naviga alla schermata del profilo
               Navigator.pushReplacementNamed(context, '/profile');

@@ -1,9 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:provider/provider.dart';
+import 'package:stranger_link_app/blocs/country/country_bloc.dart';
 import 'package:stranger_link_app/blocs/profile/profile_bloc.dart';
 import 'package:stranger_link_app/blocs/registration/register_bloc.dart';
+import 'package:stranger_link_app/blocs/search_preference/search_preference_bloc.dart';
+import 'package:stranger_link_app/repositories/country_repository.dart';
 import 'package:stranger_link_app/repositories/profile_repository.dart';
+import 'package:stranger_link_app/repositories/search_preference_repository.dart';
 import 'package:stranger_link_app/screens/login/login_screen.dart';
 import 'package:stranger_link_app/screens/registration/registration_screen.dart';
 import 'blocs/auth/auth_bloc.dart';
@@ -27,6 +31,12 @@ class MyApp extends StatelessWidget {
         ),RepositoryProvider<ProfileRepository>(
           create: (context) => ProfileRepository(),
         ),
+        RepositoryProvider<CountryRepository>(
+          create: (context) => CountryRepository(),
+        ),
+        RepositoryProvider<SearchPreferenceRepository>(
+          create: (context) => SearchPreferenceRepository(),
+        ),
         // Aggiungi altri repository se necessario
       ],
       child: MultiBlocProvider(
@@ -45,7 +55,17 @@ class MyApp extends StatelessWidget {
             create: (context) => RegisterBloc(
               authRepository: context.read<AuthRepository>(),
             ),
-          )
+          ),
+          BlocProvider<CountryBloc>(
+            create: (context) => CountryBloc(
+              countryRepository: context.read<CountryRepository>(),
+            )..add(LoadCountries()),
+          ),
+          BlocProvider<SearchPreferenceBloc>(
+            create: (context) => SearchPreferenceBloc(
+              searchPreferenceRepository: context.read<SearchPreferenceRepository>(),
+            ),
+          ),
           // Aggiungi altri BLoC se necessario
         ],
         child: MaterialApp(

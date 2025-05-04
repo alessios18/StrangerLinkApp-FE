@@ -2,6 +2,9 @@ import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:stranger_link_app/blocs/country/country_bloc.dart';
+import 'package:stranger_link_app/blocs/search_preference/search_preference_bloc.dart';
+import 'package:stranger_link_app/models/country.dart';
 import 'package:stranger_link_app/models/profile.dart';
 import 'dart:io';
 
@@ -24,10 +27,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
   final _bioController = TextEditingController();
   final _interestController = TextEditingController();
   final _countryController = TextEditingController();
-
+  Country? _selectedCountry;
   String? _selectedGender;
   File? _profileImage;
   final List<String> _interests = [];
+  bool _isPreferencesSectionExpanded = false;
 
   final ImagePicker _picker = ImagePicker();
 
@@ -40,8 +44,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
   @override
   void initState() {
     super.initState();
-    // Carica il profilo utente all'inizializzazione
+    // Carica il profilo
     context.read<ProfileBloc>().add(FetchProfile());
+
+    // Carica le preferenze di ricerca
+    context.read<SearchPreferenceBloc>().add(LoadSearchPreferences());
+
+    // Carica i paesi per l'utilizzo nelle selezioni
+    context.read<CountryBloc>().add(LoadCountries());
 
     // Mostra error message se fornito
     if (widget.errorMessage != null) {
@@ -117,7 +127,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
       final profile = Profile(
         displayName: _displayNameController.text,
         age: int.tryParse(_ageController.text),
-        country: _countryController.text,
+        country: _selectedCountry, // Usa l'oggetto Country completo
         gender: _selectedGender,
         bio: _bioController.text,
         interests: _interests,
@@ -166,53 +176,126 @@ class _ProfileScreenState extends State<ProfileScreen> {
           ),
         ],
       ),
-      body: BlocConsumer<ProfileBloc, ProfileState>(
-        listener: (context, state) {
-          if (state is ProfileError) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(content: Text(state.message)),
-            );
-          } else if (state is ProfileUpdated) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('Profilo aggiornato con successo')),
-            );
-            // Dopo l'aggiornamento, disattiva la modalità modifica
-            context.read<ProfileBloc>().add(const SetEditMode(isEditing: false));
-          } else if (state is ProfileImageUpdated) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('Immagine profilo aggiornata')),
-            );
-          }
-        },
-        builder: (context, state) {
-          if (state is ProfileLoading) {
-            return const Center(child: CircularProgressIndicator());
-          } else if (state is ProfileLoaded) {
-            // Usa un metodo separato per aggiornare i controller senza setState
-            WidgetsBinding.instance.addPostFrameCallback((_) {
-              _populateFormControllers(state.profile);
-            });
+      body: SingleChildScrollView(
+        child: Column(
+          children: [
+            // Sezione profilo utente esistente
+            BlocConsumer<ProfileBloc, ProfileState>(
+              listener: (context, state) {
+                if (state is ProfileError) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text(state.message)),
+                  );
+                } else if (state is ProfileUpdated) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Profilo aggiornato con successo')),
+                  );
+                  // Dopo l'aggiornamento, disattiva la modalità modifica
+                  context.read<ProfileBloc>().add(const SetEditMode(isEditing: false));
+                } else if (state is ProfileImageUpdated) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Immagine profilo aggiornata')),
+                  );
+                }
+              },
+              builder: (context, state) {
+                if (state is ProfileLoading) {
+                  return const Center(child: CircularProgressIndicator());
+                } else if (state is ProfileLoaded) {
+                  // Usa un metodo separato per aggiornare i controller senza setState
+                  WidgetsBinding.instance.addPostFrameCallback((_) {
+                    _populateFormControllers(state.profile);
+                  });
 
-            return state.isEditing
-                ? _buildProfileForm(context, state.profile)
-                : _buildProfileView(context, state.profile);
-          } else if (state is ProfileError) {
-            return Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Text('Errore: ${state.message}'),
-                  ElevatedButton(
-                    onPressed: () => context.read<ProfileBloc>().add(FetchProfile()),
-                    child: const Text('Riprova'),
-                  ),
-                ],
+                  return state.isEditing
+                      ? _buildProfileForm(context, state.profile)
+                      : _buildProfileView(context, state.profile);
+                } else if (state is ProfileError) {
+                  return Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Text('Errore: ${state.message}'),
+                        ElevatedButton(
+                          onPressed: () => context.read<ProfileBloc>().add(FetchProfile()),
+                          child: const Text('Riprova'),
+                        ),
+                      ],
+                    ),
+                  );
+                }
+
+                return const Center(child: CircularProgressIndicator());
+              },
+            ),
+
+            // Separatore
+            const Divider(height: 32, thickness: 1),
+
+            // Header della sezione preferenze espandibile
+            InkWell(
+              onTap: () {
+                setState(() {
+                  _isPreferencesSectionExpanded = !_isPreferencesSectionExpanded;
+                });
+              },
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+                child: Row(
+                  children: [
+                    Icon(
+                        _isPreferencesSectionExpanded
+                            ? Icons.keyboard_arrow_up
+                            : Icons.keyboard_arrow_down
+                    ),
+                    const SizedBox(width: 8),
+                    const Text(
+                      'Preferenze di Ricerca',
+                      style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold
+                      ),
+                    ),
+                  ],
+                ),
               ),
-            );
-          }
+            ),
 
-          return const Center(child: CircularProgressIndicator());
-        },
+            // Sezione preferenze di ricerca (visibile solo se espansa)
+            if (_isPreferencesSectionExpanded)
+              BlocBuilder<SearchPreferenceBloc, SearchPreferenceState>(
+                builder: (context, state) {
+                  if (state is SearchPreferenceLoading) {
+                    return const Center(child: CircularProgressIndicator());
+                  }
+
+                  if (state is SearchPreferencesLoaded) {
+                    return _buildSearchPreferencesSection(context, state);
+                  }
+
+                  if (state is SearchPreferenceError) {
+                    return Center(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Text('Errore: ${state.message}'),
+                          ElevatedButton(
+                            onPressed: () {
+                              context.read<SearchPreferenceBloc>().add(LoadSearchPreferences());
+                            },
+                            child: const Text('Riprova'),
+                          ),
+                        ],
+                      ),
+                    );
+                  }
+
+                  // Se non è ancora stato caricato
+                  return const Center(child: CircularProgressIndicator());
+                },
+              ),
+          ],
+        ),
       ),
       floatingActionButton: BlocBuilder<ProfileBloc, ProfileState>(
         buildWhen: (previous, current) {
@@ -225,7 +308,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
           final isEditing = state is ProfileLoaded ? state.isEditing : false;
 
           return isEditing ? FloatingActionButton(
-            onPressed: _updateProfile,
+            onPressed: () {
+              // Salva il profilo
+              _updateProfile();
+
+              // Salva anche le preferenze di ricerca
+              context.read<SearchPreferenceBloc>().add(SaveSearchPreferences());
+            },
             child: const Icon(Icons.save),
           ) : const SizedBox.shrink();
         },
@@ -244,7 +333,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
     }
 
     if (_countryController.text != profile.country) {
-      _countryController.text = profile.country ?? '';
+      _countryController.text = profile.country?.name ?? '';
+      _selectedCountry = profile.country;
     }
 
     if (_selectedGender != profile.gender) {
@@ -313,10 +403,28 @@ class _ProfileScreenState extends State<ProfileScreen> {
           ),
 
           // Country
-          _buildInfoTile(
-            title: 'Paese',
-            value: profile.country ?? 'Non impostato',
-            icon: Icons.location_on,
+          BlocBuilder<CountryBloc, CountryState>(
+            builder: (context, countryState) {
+              String countryName = profile.country?.id != null
+                  ? 'ID paese: ${profile.country?.id}'
+                  : 'Non impostato';
+
+              if (profile.country?.id != null && countryState is CountriesLoaded) {
+                final country = countryState.countries.firstWhere(
+                      (country) => country.id == profile.country?.id,
+                );
+
+                if (country != null) {
+                  countryName = country.name;
+                }
+              }
+
+              return _buildInfoTile(
+                title: 'Paese',
+                value: countryName,
+                icon: Icons.location_on,
+              );
+            },
           ),
 
           // Gender
@@ -417,7 +525,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
       ),
     );
   }
-
   Widget _buildProfileForm(BuildContext context, Profile profile) {
     return SingleChildScrollView(
       padding: const EdgeInsets.all(16.0),
@@ -510,38 +617,44 @@ class _ProfileScreenState extends State<ProfileScreen> {
             const SizedBox(height: 16),
 
             // Country
-            Autocomplete<String>(
-              optionsBuilder: (TextEditingValue textEditingValue) {
-                if (textEditingValue.text.isEmpty) {
-                  return const [];
-                }
-                return _countrySuggestions.where((country) =>
-                    country.toLowerCase().contains(textEditingValue.text.toLowerCase()));
-              },
-              onSelected: (String selection) {
-                _countryController.text = selection;
-              },
-              fieldViewBuilder: (
-                  BuildContext context,
-                  TextEditingController controller,
-                  FocusNode focusNode,
-                  VoidCallback onFieldSubmitted,
-                  ) {
-                // Sincronizza il controller dell'autocomplete con il controller salvato
-                if (controller.text != _countryController.text) {
-                  controller.text = _countryController.text;
+            const Text('Paese:'),
+            const SizedBox(height: 8),
+            BlocBuilder<CountryBloc, CountryState>(
+              builder: (context, countryState) {
+                if (countryState is CountriesLoaded) {
+                  // Trova il paese corrispondente all'ID nel profilo
+                  Country? selectedCountry;
+                  if (profile.country != null) {
+                    selectedCountry = countryState.countries.firstWhere(
+                          (country) => country.id == profile.country?.id,
+                    );
+                  }
+
+                  return DropdownButtonFormField<Country>(
+                    value: selectedCountry,
+                    decoration: const InputDecoration(
+                      labelText: 'Seleziona paese',
+                      border: OutlineInputBorder(),
+                      prefixIcon: Icon(Icons.location_on),
+                    ),
+                    items: countryState.countries.map((country) {
+                      return DropdownMenuItem<Country>(
+                        value: country,
+                        child: Text(country.name),
+                      );
+                    }).toList(),
+                    onChanged: (country) {
+                      // Salva l'ID del paese selezionato
+                      setState(() {
+                        _selectedCountry = country;
+                      });
+                    },
+                  );
                 }
 
-                return TextFormField(
-                  controller: controller,
-                  focusNode: focusNode,
-                  onChanged: (value) => _countryController.text = value,
-                  decoration: const InputDecoration(
-                    labelText: 'Paese',
-                    border: OutlineInputBorder(),
-                    prefixIcon: Icon(Icons.location_on),
-                  ),
-                );
+                // Carica i paesi se non è stato ancora fatto
+                context.read<CountryBloc>().add(LoadCountries());
+                return const Center(child: CircularProgressIndicator());
               },
             ),
             const SizedBox(height: 16),
@@ -630,6 +743,200 @@ class _ProfileScreenState extends State<ProfileScreen> {
           ],
         ),
       ),
+    );
+  }
+  Widget _buildSearchPreferencesSection(BuildContext context, SearchPreferencesLoaded state) {
+    return BlocBuilder<ProfileBloc, ProfileState>(
+      builder: (context, profileState) {
+        final isEditing = profileState is ProfileLoaded ? profileState.isEditing : false;
+
+        return Padding(
+          padding: const EdgeInsets.all(16.0),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              if (isEditing) ...[
+                // Range di età
+                const Text('Range di età:'),
+                const SizedBox(height: 8),
+                Row(
+                  children: [
+                    Expanded(
+                      child: TextFormField(
+                        initialValue: state.preferences.minAge?.toString() ?? '',
+                        decoration: const InputDecoration(
+                          labelText: 'Età minima',
+                          border: OutlineInputBorder(),
+                        ),
+                        keyboardType: TextInputType.number,
+                        onChanged: (value) {
+                          if (value.isNotEmpty) {
+                            context.read<SearchPreferenceBloc>().add(
+                              SetMinAge(int.parse(value)),
+                            );
+                          }
+                        },
+                      ),
+                    ),
+                    const SizedBox(width: 16),
+                    Expanded(
+                      child: TextFormField(
+                        initialValue: state.preferences.maxAge?.toString() ?? '',
+                        decoration: const InputDecoration(
+                          labelText: 'Età massima',
+                          border: OutlineInputBorder(),
+                        ),
+                        keyboardType: TextInputType.number,
+                        onChanged: (value) {
+                          if (value.isNotEmpty) {
+                            context.read<SearchPreferenceBloc>().add(
+                              SetMaxAge(int.parse(value)),
+                            );
+                          }
+                        },
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 16),
+
+                // Genere preferito
+                const Text('Genere preferito:'),
+                const SizedBox(height: 8),
+                DropdownButtonFormField<String>(
+                  value: state.preferences.preferredGender ?? 'all',
+                  decoration: const InputDecoration(
+                    border: OutlineInputBorder(),
+                  ),
+                  items: const [
+                    DropdownMenuItem(value: 'male', child: Text('Uomo')),
+                    DropdownMenuItem(value: 'female', child: Text('Donna')),
+                    DropdownMenuItem(value: 'all', child: Text('Tutti')),
+                  ],
+                  onChanged: (value) {
+                    if (value != null) {
+                      context.read<SearchPreferenceBloc>().add(
+                        SetPreferredGender(value),
+                      );
+                    }
+                  },
+                ),
+                const SizedBox(height: 16),
+
+                // Selezione paese
+                const Text('Paese:'),
+                const SizedBox(height: 8),
+                Row(
+                  children: [
+                    Checkbox(
+                      value: state.preferences.allCountries,
+                      onChanged: (value) {
+                        if (value != null) {
+                          context.read<SearchPreferenceBloc>().add(
+                            SetAllCountries(value),
+                          );
+                        }
+                      },
+                    ),
+                    const Text('Tutti i paesi'),
+                  ],
+                ),
+                if (!state.preferences.allCountries) ...[
+                  const SizedBox(height: 8),
+                  BlocBuilder<CountryBloc, CountryState>(
+                    builder: (context, countryState) {
+                      if (countryState is CountriesLoaded) {
+                        // Trova il paese corrispondente all'ID preferito
+                        Country? selectedCountry;
+                        if (state.preferences.preferredCountryId != null) {
+                          selectedCountry = countryState.countries.firstWhere(
+                                (country) => country.id == state.preferences.preferredCountryId,
+                            );
+                        }
+
+                        return DropdownButtonFormField<Country>(
+                          value: selectedCountry,
+                          decoration: const InputDecoration(
+                            labelText: 'Seleziona paese',
+                            border: OutlineInputBorder(),
+                          ),
+                          items: countryState.countries.map((country) {
+                            return DropdownMenuItem<Country>(
+                              value: country,
+                              child: Text(country.name),
+                            );
+                          }).toList(),
+                          onChanged: (country) {
+                            if (country != null) {
+                              context.read<SearchPreferenceBloc>().add(
+                                SetPreferredCountry(country.id),
+                              );
+                            }
+                          },
+                        );
+                      }
+
+                      // Carica i paesi se non è stato ancora fatto
+                      if (countryState is CountryInitial) {
+                        context.read<CountryBloc>().add(LoadCountries());
+                      }
+
+                      return const Center(child: CircularProgressIndicator());
+                    },
+                  ),
+                ],
+              ] else ...[
+                // Modalità visualizzazione (non-editing)
+                _buildInfoTile(
+                  title: 'Range di età',
+                  value: state.preferences.minAge != null && state.preferences.maxAge != null
+                      ? '${state.preferences.minAge} - ${state.preferences.maxAge} anni'
+                      : 'Non impostato',
+                  icon: Icons.person_outline,
+                ),
+
+                _buildInfoTile(
+                  title: 'Genere preferito',
+                  value: state.preferences.preferredGender == 'male'
+                      ? 'Uomo'
+                      : state.preferences.preferredGender == 'female'
+                      ? 'Donna'
+                      : 'Tutti',
+                  icon: Icons.people_outline,
+                ),
+
+                BlocBuilder<CountryBloc, CountryState>(
+                  builder: (context, countryState) {
+                    String countryName;
+
+                    if (state.preferences.allCountries) {
+                      countryName = 'Tutti i paesi';
+                    } else if (state.preferences.preferredCountryId != null &&
+                        countryState is CountriesLoaded) {
+                      // Cerca il paese per ID
+                      final country = countryState.countries.firstWhere(
+                            (c) => c.id == state.preferences.preferredCountryId,
+                      );
+
+                      countryName = country != null
+                          ? country.name
+                          : 'ID paese: ${state.preferences.preferredCountryId}';
+                    } else {
+                      countryName = 'Non impostato';
+                    }
+
+                    return _buildInfoTile(
+                      title: 'Paese preferito',
+                      value: countryName,
+                      icon: Icons.location_on_outlined,
+                    );
+                  },
+                ),
+              ],
+            ],
+          ),
+        );
+      },
     );
   }
 }

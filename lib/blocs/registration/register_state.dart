@@ -13,11 +13,15 @@ class RegisterLoading extends RegisterState {}
 
 class RegisterSuccess extends RegisterState {
   final User user;
+  final bool isNewRegistration;
 
-  const RegisterSuccess({required this.user});
+  const RegisterSuccess({
+    required this.user,
+    this.isNewRegistration = true
+  });
 
   @override
-  List<Object?> get props => [user];
+  List<Object?> get props => [user, isNewRegistration];
 }
 
 class RegisterFailure extends RegisterState {

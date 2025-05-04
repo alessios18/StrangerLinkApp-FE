@@ -1,5 +1,6 @@
 import 'package:equatable/equatable.dart';
 import 'package:json_annotation/json_annotation.dart';
+import 'package:stranger_link_app/models/country.dart';
 
 part 'profile.g.dart';
 
@@ -9,7 +10,7 @@ class Profile extends Equatable {
   final String displayName;
 
   final int? age;
-  final String? country;
+  final Country? country;
   final String? gender;
   final String? bio;
 
@@ -34,7 +35,7 @@ class Profile extends Equatable {
   Profile copyWith({
     String? displayName,
     int? age,
-    String? country,
+    Country? country,
     String? gender,
     String? bio,
     String? profileImageUrl,
