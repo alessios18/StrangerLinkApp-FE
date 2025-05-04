@@ -5,7 +5,7 @@ import '../models/user.dart';
 import '../services/storage_service.dart';
 
 class AuthRepository {
-  final String baseUrl = 'http://localhost:8080/api';
+  final String baseUrl = 'http://192.168.2.101:8080/api';
   final StorageService _storageService = StorageService();
 
   Future<User?> getCurrentUser() async {
@@ -44,10 +44,13 @@ class AuthRepository {
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
         await _storageService.saveToken(data['token']);
-        return User.fromJson(data);
+
+        // Ora possiamo utilizzare direttamente i dati dell'utente dalla risposta
+        return User.fromJson(data['user']);
       }
       return null;
     } catch (e) {
+      print('Login error: $e');
       return null;
     }
   }

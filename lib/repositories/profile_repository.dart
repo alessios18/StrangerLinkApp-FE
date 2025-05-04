@@ -6,7 +6,7 @@ import '../models/profile.dart';
 import '../services/storage_service.dart';
 
 class ProfileRepository {
-  final String baseUrl = 'http://localhost:8080/api';
+  final String baseUrl = 'http://192.168.2.101:8080/api';
   final StorageService _storageService = StorageService();
 
   Future<Profile> getCurrentUserProfile() async {
