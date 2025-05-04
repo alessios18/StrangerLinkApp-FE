@@ -74,4 +74,32 @@ class UserRepository {
       throw Exception('Failed to get recent users: $e');
     }
   }
+
+  Future<User?> getRandomMatch() async {
+    final token = await _storageService.getToken();
+    if (token == null) {
+      throw Exception('Authentication token not found');
+    }
+
+    try {
+      final response = await http.get(
+        Uri.parse('$baseUrl/search/random-match'),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+      );
+
+      if (response.statusCode == 200) {
+        return User.fromJson(jsonDecode(response.body));
+      } else if (response.statusCode == 204) {
+        // No match found
+        return null;
+      } else {
+        throw Exception('Failed to get random match: ${response.statusCode} ${response.body}');
+      }
+    } catch (e) {
+      throw Exception('Failed to get random match: $e');
+    }
+  }
 }

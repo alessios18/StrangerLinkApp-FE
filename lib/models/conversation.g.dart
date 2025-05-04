@@ -10,12 +10,11 @@ Conversation _$ConversationFromJson(Map<String, dynamic> json) => Conversation(
   id: (json['id'] as num).toInt(),
   otherUser: User.fromJson(json['otherUser'] as Map<String, dynamic>),
   lastMessage: json['lastMessage'] as String?,
-  lastMessageTimestamp:
-      json['lastMessageTimestamp'] == null
-          ? null
-          : DateTime.parse(json['lastMessageTimestamp'] as String),
+  lastMessageTimestamp: Conversation._dateTimeFromJson(
+    json['lastMessageTimestamp'],
+  ),
   unreadCount: (json['unreadCount'] as num).toInt(),
-  isOnline: json['isOnline'] as bool,
+  isOnline: json['isOnline'] as bool?,
 );
 
 Map<String, dynamic> _$ConversationToJson(Conversation instance) =>
@@ -23,7 +22,9 @@ Map<String, dynamic> _$ConversationToJson(Conversation instance) =>
       'id': instance.id,
       'otherUser': instance.otherUser,
       'lastMessage': instance.lastMessage,
-      'lastMessageTimestamp': instance.lastMessageTimestamp?.toIso8601String(),
+      'lastMessageTimestamp': Conversation._dateTimeToJson(
+        instance.lastMessageTimestamp,
+      ),
       'unreadCount': instance.unreadCount,
       'isOnline': instance.isOnline,
     };

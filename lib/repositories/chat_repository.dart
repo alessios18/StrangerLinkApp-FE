@@ -19,6 +19,7 @@ class ChatRepository {
   Function(Message)? onMessageStatusChanged;
   Function(int, bool)? onUserStatusChanged;
   Function()? onConnectionChanged;
+  Function()? onNewConversation;
 
   bool get isConnected => _stompClient?.connected ?? false;
 
@@ -73,6 +74,15 @@ class ChatRepository {
                     status['online'] ?? false,
                   );
                 }
+              }
+            },
+          );
+
+          _stompClient?.subscribe(
+            destination: '/user/$userId/queue/new-conversation',
+            callback: (StompFrame frame) {
+              if (onNewConversation != null) {
+                onNewConversation!();
               }
             },
           );

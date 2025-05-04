@@ -20,6 +20,8 @@ class _UserSearchScreenState extends State<UserSearchScreen> with SingleTickerPr
   late TabController _tabController;
   final UserRepository _userRepository = UserRepository();
 
+  bool _isMatchingInProgress = false;
+
   // For random match tab
   List<User> _randomUsers = [];
   bool _isLoadingRandom = false;
@@ -109,6 +111,22 @@ class _UserSearchScreenState extends State<UserSearchScreen> with SingleTickerPr
     return Scaffold(
       appBar: AppBar(
         title: const Text('Find People'),
+        actions: [
+          IconButton(
+            icon: _isMatchingInProgress
+                ? const SizedBox(
+                width: 20,
+                height: 20,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2,
+                  color: Colors.white,
+                )
+            )
+                : const Icon(Icons.shuffle),
+            tooltip: 'Random Match',
+            onPressed: _isMatchingInProgress ? null : _findRandomMatch,
+          ),
+        ],
         bottom: TabBar(
           controller: _tabController,
           tabs: const [
@@ -123,30 +141,54 @@ class _UserSearchScreenState extends State<UserSearchScreen> with SingleTickerPr
           ],
         ),
       ),
-      body: TabBarView(
-        controller: _tabController,
+      body: Stack(
         children: [
-          // Random matches tab
-          RefreshIndicator(
-            onRefresh: _loadRandomMatches,
-            child: _buildUserList(
-              _randomUsers,
-              _isLoadingRandom,
-              _randomError,
-              'No matches found based on your preferences.\nTry adjusting your search preferences.',
-            ),
+          // Main content
+          TabBarView(
+            controller: _tabController,
+            children: [
+              // Random matches tab
+              RefreshIndicator(
+                onRefresh: _loadRandomMatches,
+                child: _buildUserList(
+                  _randomUsers,
+                  _isLoadingRandom,
+                  _randomError,
+                  'No matches found based on your preferences.\nTry adjusting your search preferences.',
+                ),
+              ),
+
+              // Recent users tab
+              RefreshIndicator(
+                onRefresh: _loadRecentUsers,
+                child: _buildUserList(
+                  _recentUsers,
+                  _isLoadingRecent,
+                  _recentError,
+                  'No users have been active recently.',
+                ),
+              ),
+            ],
           ),
 
-          // Recent users tab
-          RefreshIndicator(
-            onRefresh: _loadRecentUsers,
-            child: _buildUserList(
-              _recentUsers,
-              _isLoadingRecent,
-              _recentError,
-              'No users have been active recently.',
+          // Overlay for matching progress
+          if (_isMatchingInProgress)
+            Container(
+              color: Colors.black54,
+              child: Center(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: const [
+                    CircularProgressIndicator(),
+                    SizedBox(height: 16),
+                    Text(
+                      'Finding a random match...',
+                      style: TextStyle(color: Colors.white, fontSize: 16),
+                    ),
+                  ],
+                ),
+              ),
             ),
-          ),
         ],
       ),
     );
@@ -277,4 +319,55 @@ class _UserSearchScreenState extends State<UserSearchScreen> with SingleTickerPr
       },
     );
   }
+
+  void _findRandomMatch() async {
+    setState(() {
+      _isMatchingInProgress = true;
+    });
+
+    try {
+      final User? matchedUser = await _userRepository.getRandomMatch();
+
+      setState(() {
+        _isMatchingInProgress = false;
+      });
+
+      if (matchedUser != null) {
+        // Create a dummy conversation with the matched user
+        final conversation = Conversation(
+          id: 0, // The server will create a real ID
+          otherUser: matchedUser,
+          unreadCount: 0,
+          isOnline: true,
+        );
+
+        // Navigate directly to the chat screen
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => ChatDetailScreen(conversation: conversation),
+          ),
+        );
+      } else {
+        // Show "No match found" message
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('No matching users found. Try adjusting your preferences.'),
+          ),
+        );
+      }
+    } catch (e) {
+      setState(() {
+        _isMatchingInProgress = false;
+      });
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Error finding match: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
+  }
+
 }

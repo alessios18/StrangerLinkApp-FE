@@ -54,7 +54,12 @@ class ChatBloc extends Bloc<ChatEvent, ChatState> {
     chatRepository.onConnectionChanged = () {
       add(ConnectionStatusChanged());
     };
+
+    chatRepository.onNewConversation = () {
+      add(LoadConversations());
+    };
   }
+
 
   @override
   Future<void> close() {
@@ -196,6 +201,13 @@ class ChatBloc extends Bloc<ChatEvent, ChatState> {
         // Send message to server
         final sentMessage = await chatRepository.sendMessage(optimisticMessage);
 
+        // If this is the first message in a new conversation (id = 0),
+        // add the conversation to the conversations list
+        if (event.message.conversationId == 0 && sentMessage.conversationId != 0) {
+          // We need to reload the conversations to get the new one
+          add(LoadConversations());
+        }
+
         // Update with server-assigned ID and status
         final finalMessages = updatedMessages.map((m) {
           if (m.timestamp == optimisticMessage.timestamp &&
@@ -209,6 +221,7 @@ class ChatBloc extends Bloc<ChatEvent, ChatState> {
         emit(currentState.copyWith(
           messages: finalMessages,
           scrollToBottom: false, // Already scrolled when adding optimistic message
+          conversationId: sentMessage.conversationId, // Update conversation ID
         ));
       } catch (e) {
         // Show error but keep optimistic message with error status

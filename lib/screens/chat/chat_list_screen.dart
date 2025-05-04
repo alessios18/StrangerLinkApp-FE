@@ -130,7 +130,7 @@ class _ChatListScreenState extends State<ChatListScreen> {
                 ? Text(otherUser.username.substring(0, 1).toUpperCase())
                 : null,
           ),
-          if (conversation.isOnline)
+          if (conversation.isOnline != null)
             Positioned(
               right: 0,
               bottom: 0,
