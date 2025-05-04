@@ -19,6 +19,7 @@ class ProfileBloc extends Bloc<ProfileEvent, ProfileState> {
     on<UpdateProfileImage>(_onUpdateProfileImage);
     on<AddInterest>(_onAddInterest);
     on<RemoveInterest>(_onRemoveInterest);
+    on<SetEditMode>(_onSetEditMode);
   }
 
   Future<void> _onFetchProfile(FetchProfile event, Emitter<ProfileState> emit) async {
@@ -104,6 +105,12 @@ class ProfileBloc extends Bloc<ProfileEvent, ProfileState> {
 
         add(UpdateProfile(profile: updatedProfile));
       }
+    }
+  }
+  Future<void> _onSetEditMode(SetEditMode event, Emitter<ProfileState> emit) async {
+    final currentState = state;
+    if (currentState is ProfileLoaded) {
+      emit(currentState.copyWith(isEditing: event.isEditing));
     }
   }
 }

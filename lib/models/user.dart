@@ -9,10 +9,10 @@ class User extends Equatable {
   final String username;
   final String email;
 
-  @JsonKey(name: 'created_at')
+  @JsonKey(name: 'created_at', fromJson: _dateTimeFromJson, toJson: _dateTimeToJson)
   final DateTime createdAt;
 
-  @JsonKey(name: 'last_active')
+  @JsonKey(name: 'last_active', fromJson: _dateTimeFromJson, toJson: _dateTimeToJson)
   final DateTime lastActive;
 
   const User({
@@ -22,6 +22,24 @@ class User extends Equatable {
     required this.createdAt,
     required this.lastActive,
   });
+
+  // Funzioni statiche per la conversione che gestiscono diversi tipi di input
+  static DateTime _dateTimeFromJson(dynamic value) {
+    if (value is int) {
+      return DateTime.fromMillisecondsSinceEpoch(value);
+    } else if (value is num) {
+      return DateTime.fromMillisecondsSinceEpoch(value.toInt());
+    } else if (value is String) {
+      // Gestione del caso in cui il valore sia una stringa (come in precedenza)
+      return DateTime.parse(value);
+    }
+    // Fallback
+    return DateTime.now();
+  }
+
+  static int _dateTimeToJson(DateTime dateTime) {
+    return dateTime.millisecondsSinceEpoch;
+  }
 
   factory User.fromJson(Map<String, dynamic> json) => _$UserFromJson(json);
 

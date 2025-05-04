@@ -1,3 +1,4 @@
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:image_picker/image_picker.dart';
@@ -36,14 +37,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
     'Germany', 'France', 'Spain', 'Brazil', 'Japan', 'China', 'India'
   ];
 
-  bool _isEditing = false;
-
   @override
   void initState() {
     super.initState();
+    // Carica il profilo utente all'inizializzazione
     context.read<ProfileBloc>().add(FetchProfile());
 
-    // Show error message if provided
+    // Mostra error message se fornito
     if (widget.errorMessage != null) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -51,6 +51,26 @@ class _ProfileScreenState extends State<ProfileScreen> {
         );
       });
     }
+
+    // Verifica se è un nuovo utente e imposta automaticamente la modalità edit
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final authState = context.read<AuthBloc>().state;
+      if (authState is AuthAuthenticated) {
+        final user = authState.user;
+        final isNewRegistration = DateTime.now().difference(user.createdAt).inMinutes < 5;
+
+        if (isNewRegistration) {
+          context.read<ProfileBloc>().add(const SetEditMode(isEditing: true));
+
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Benvenuto! Completa il tuo profilo per iniziare.'),
+              backgroundColor: Colors.blue,
+            ),
+          );
+        }
+      }
+    });
   }
 
   @override
@@ -69,7 +89,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
       setState(() {
         _profileImage = File(image.path);
       });
-      // Upload the image
+      // Upload immagine profilo
       context.read<ProfileBloc>().add(
         UpdateProfileImage(imageFile: _profileImage!),
       );
@@ -104,26 +124,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
       );
 
       context.read<ProfileBloc>().add(UpdateProfile(profile: profile));
-
-      setState(() {
-        _isEditing = false;
-      });
     }
-  }
-
-  void _populateForm(Profile profile) {
-    _displayNameController.text = profile.displayName ?? '';
-    _ageController.text = profile.age?.toString() ?? '';
-    _countryController.text = profile.country ?? '';
-    _selectedGender = profile.gender;
-    _bioController.text = profile.bio ?? '';
-
-    setState(() {
-      _interests.clear();
-      if (profile.interests != null) {
-        _interests.addAll(profile.interests!);
-      }
-    });
   }
 
   void _logout() {
@@ -134,18 +135,29 @@ class _ProfileScreenState extends State<ProfileScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Profile'),
+        title: const Text('Profilo'),
         actions: [
-          IconButton(
-            icon: Icon(_isEditing ? Icons.close : Icons.edit),
-            onPressed: () {
-              setState(() {
-                _isEditing = !_isEditing;
-                if (!_isEditing) {
-                  // Reset form if canceling edit
-                  context.read<ProfileBloc>().add(FetchProfile());
-                }
-              });
+          BlocBuilder<ProfileBloc, ProfileState>(
+            buildWhen: (previous, current) {
+              if (previous is ProfileLoaded && current is ProfileLoaded) {
+                return previous.isEditing != current.isEditing;
+              }
+              return false;
+            },
+            builder: (context, state) {
+              final isEditing = state is ProfileLoaded ? state.isEditing : false;
+
+              return IconButton(
+                icon: Icon(isEditing ? Icons.close : Icons.edit),
+                onPressed: () {
+                  if (isEditing) {
+                    // Se si annulla la modifica, ricarica il profilo
+                    context.read<ProfileBloc>().add(FetchProfile());
+                  }
+                  // Inverte lo stato di modifica
+                  context.read<ProfileBloc>().add(SetEditMode(isEditing: !isEditing));
+                },
+              );
             },
           ),
           IconButton(
@@ -162,7 +174,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
             );
           } else if (state is ProfileUpdated) {
             ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('Profile updated successfully')),
+              const SnackBar(content: Text('Profilo aggiornato con successo')),
+            );
+            // Dopo l'aggiornamento, disattiva la modalità modifica
+            context.read<ProfileBloc>().add(const SetEditMode(isEditing: false));
+          } else if (state is ProfileImageUpdated) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('Immagine profilo aggiornata')),
             );
           }
         },
@@ -170,12 +188,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
           if (state is ProfileLoading) {
             return const Center(child: CircularProgressIndicator());
           } else if (state is ProfileLoaded) {
-            // Populate form when profile is loaded
-            if (_displayNameController.text.isEmpty || !_isEditing) {
-              _populateForm(state.profile);
-            }
+            // Usa un metodo separato per aggiornare i controller senza setState
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              _populateFormControllers(state.profile);
+            });
 
-            return _isEditing
+            return state.isEditing
                 ? _buildProfileForm(context, state.profile)
                 : _buildProfileView(context, state.profile);
           } else if (state is ProfileError) {
@@ -183,10 +201,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Text('Error: ${state.message}'),
+                  Text('Errore: ${state.message}'),
                   ElevatedButton(
                     onPressed: () => context.read<ProfileBloc>().add(FetchProfile()),
-                    child: const Text('Retry'),
+                    child: const Text('Riprova'),
                   ),
                 ],
               ),
@@ -196,11 +214,66 @@ class _ProfileScreenState extends State<ProfileScreen> {
           return const Center(child: CircularProgressIndicator());
         },
       ),
-      floatingActionButton: _isEditing ? FloatingActionButton(
-        onPressed: _updateProfile,
-        child: const Icon(Icons.save),
-      ) : null,
+      floatingActionButton: BlocBuilder<ProfileBloc, ProfileState>(
+        buildWhen: (previous, current) {
+          if (previous is ProfileLoaded && current is ProfileLoaded) {
+            return previous.isEditing != current.isEditing;
+          }
+          return false;
+        },
+        builder: (context, state) {
+          final isEditing = state is ProfileLoaded ? state.isEditing : false;
+
+          return isEditing ? FloatingActionButton(
+            onPressed: _updateProfile,
+            child: const Icon(Icons.save),
+          ) : const SizedBox.shrink();
+        },
+      ),
     );
+  }
+
+  // Metodo sicuro per aggiornare i controller senza causare setState durante il build
+  void _populateFormControllers(Profile profile) {
+    if (_displayNameController.text != profile.displayName) {
+      _displayNameController.text = profile.displayName ?? '';
+    }
+
+    if (_ageController.text != profile.age?.toString()) {
+      _ageController.text = profile.age?.toString() ?? '';
+    }
+
+    if (_countryController.text != profile.country) {
+      _countryController.text = profile.country ?? '';
+    }
+
+    if (_selectedGender != profile.gender) {
+      _selectedGender = profile.gender;
+    }
+
+    if (_bioController.text != profile.bio) {
+      _bioController.text = profile.bio ?? '';
+    }
+
+    // Aggiorna gli interessi solo se necessario per evitare cicli infiniti
+    if (!_areInterestsEqual(_interests, profile.interests)) {
+      _interests.clear();
+      if (profile.interests != null) {
+        _interests.addAll(profile.interests!);
+      }
+    }
+  }
+
+  // Confronta due liste di interessi
+  bool _areInterestsEqual(List<String> list1, List<String>? list2) {
+    if (list2 == null) return list1.isEmpty;
+    if (list1.length != list2.length) return false;
+
+    for (int i = 0; i < list1.length; i++) {
+      if (list1[i] != list2[i]) return false;
+    }
+
+    return true;
   }
 
   Widget _buildProfileView(BuildContext context, Profile profile) {
@@ -211,36 +284,15 @@ class _ProfileScreenState extends State<ProfileScreen> {
         children: [
           Center(
             child: GestureDetector(
-              onTap: _isEditing ? _pickImage : null,
-              child: Stack(
-                children: [
-                  CircleAvatar(
-                    radius: 60,
-                    backgroundImage: profile.profileImageUrl != null
-                        ? NetworkImage(profile.profileImageUrl!)
-                        : null,
-                    child: profile.profileImageUrl == null
-                        ? const Icon(Icons.person, size: 60)
-                        : null,
-                  ),
-                  if (_isEditing)
-                    Positioned(
-                      bottom: 0,
-                      right: 0,
-                      child: Container(
-                        padding: const EdgeInsets.all(4),
-                        decoration: BoxDecoration(
-                          color: Theme.of(context).primaryColor,
-                          shape: BoxShape.circle,
-                        ),
-                        child: const Icon(
-                          Icons.camera_alt,
-                          color: Colors.white,
-                          size: 20,
-                        ),
-                      ),
-                    ),
-                ],
+              onTap: null, // Disabilitato in modalità visualizzazione
+              child: CircleAvatar(
+                radius: 60,
+                backgroundImage: profile.profileImageUrl != null
+                    ? NetworkImage(profile.profileImageUrl!)
+                    : null,
+                child: profile.profileImageUrl == null
+                    ? const Icon(Icons.person, size: 60)
+                    : null,
               ),
             ),
           ),
@@ -248,29 +300,29 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
           // Display name
           _buildInfoTile(
-            title: 'Display Name',
-            value: profile.displayName ?? 'Not set',
+            title: 'Nome visualizzato',
+            value: profile.displayName ?? 'Non impostato',
             icon: Icons.person,
           ),
 
           // Age
           _buildInfoTile(
-            title: 'Age',
-            value: profile.age?.toString() ?? 'Not set',
+            title: 'Età',
+            value: profile.age?.toString() ?? 'Non impostato',
             icon: Icons.cake,
           ),
 
           // Country
           _buildInfoTile(
-            title: 'Country',
-            value: profile.country ?? 'Not set',
+            title: 'Paese',
+            value: profile.country ?? 'Non impostato',
             icon: Icons.location_on,
           ),
 
           // Gender
           _buildInfoTile(
-            title: 'Gender',
-            value: profile.gender ?? 'Not set',
+            title: 'Genere',
+            value: profile.gender ?? 'Non impostato',
             icon: Icons.people,
           ),
 
@@ -312,7 +364,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 Icon(Icons.description),
                 SizedBox(width: 8),
                 Text(
-                  'Bio',
+                  'Biografia',
                   style: TextStyle(
                     fontSize: 16,
                     fontWeight: FontWeight.bold,
@@ -341,7 +393,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 Icon(Icons.interests),
                 SizedBox(width: 8),
                 Text(
-                  'Interests',
+                  'Interessi',
                   style: TextStyle(
                     fontSize: 16,
                     fontWeight: FontWeight.bold,
@@ -416,13 +468,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
             TextFormField(
               controller: _displayNameController,
               decoration: const InputDecoration(
-                labelText: 'Display Name',
+                labelText: 'Nome visualizzato',
                 border: OutlineInputBorder(),
                 prefixIcon: Icon(Icons.person),
               ),
               validator: (value) {
                 if (value != null && value.length > 50) {
-                  return 'Display name cannot exceed 50 characters';
+                  return 'Il nome non può superare i 50 caratteri';
                 }
                 return null;
               },
@@ -433,7 +485,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
             TextFormField(
               controller: _ageController,
               decoration: const InputDecoration(
-                labelText: 'Age',
+                labelText: 'Età',
                 border: OutlineInputBorder(),
                 prefixIcon: Icon(Icons.cake),
               ),
@@ -444,13 +496,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 }
                 final age = int.tryParse(value);
                 if (age == null) {
-                  return 'Please enter a valid number';
+                  return 'Inserisci un numero valido';
                 }
                 if (age < 18) {
-                  return 'Age must be at least 18';
+                  return 'L\'età deve essere almeno 18';
                 }
                 if (age > 120) {
-                  return 'Age must be less than 120';
+                  return 'L\'età deve essere inferiore a 120';
                 }
                 return null;
               },
@@ -475,7 +527,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   FocusNode focusNode,
                   VoidCallback onFieldSubmitted,
                   ) {
-                // Sync the autocomplete controller with our stored controller
+                // Sincronizza il controller dell'autocomplete con il controller salvato
                 if (controller.text != _countryController.text) {
                   controller.text = _countryController.text;
                 }
@@ -485,7 +537,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   focusNode: focusNode,
                   onChanged: (value) => _countryController.text = value,
                   decoration: const InputDecoration(
-                    labelText: 'Country',
+                    labelText: 'Paese',
                     border: OutlineInputBorder(),
                     prefixIcon: Icon(Icons.location_on),
                   ),
@@ -498,7 +550,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
             DropdownButtonFormField<String>(
               value: _selectedGender,
               decoration: const InputDecoration(
-                labelText: 'Gender',
+                labelText: 'Genere',
                 border: OutlineInputBorder(),
                 prefixIcon: Icon(Icons.people),
               ),
@@ -520,7 +572,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
             TextFormField(
               controller: _bioController,
               decoration: const InputDecoration(
-                labelText: 'Bio',
+                labelText: 'Biografia',
                 border: OutlineInputBorder(),
                 alignLabelWithHint: true,
                 prefixIcon: Icon(Icons.description),
@@ -528,7 +580,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
               maxLines: 5,
               validator: (value) {
                 if (value != null && value.length > 500) {
-                  return 'Bio cannot exceed 500 characters';
+                  return 'La biografia non può superare i 500 caratteri';
                 }
                 return null;
               },
@@ -536,7 +588,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
             const SizedBox(height: 16),
 
             // Interests
-            const Text('Interests', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+            const Text('Interessi', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
             const SizedBox(height: 8),
             Row(
               children: [
@@ -544,7 +596,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   child: TextFormField(
                     controller: _interestController,
                     decoration: const InputDecoration(
-                      labelText: 'Add interest',
+                      labelText: 'Aggiungi interesse',
                       border: OutlineInputBorder(),
                       prefixIcon: Icon(Icons.interests),
                     ),
@@ -575,22 +627,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
               }).toList(),
             ),
             const SizedBox(height: 24),
-
-            if (!_isEditing)
-              SizedBox(
-                width: double.infinity,
-                child: ElevatedButton(
-                  onPressed: () {
-                    setState(() {
-                      _isEditing = true;
-                    });
-                  },
-                  style: ElevatedButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(vertical: 16),
-                  ),
-                  child: const Text('Edit Profile'),
-                ),
-              ),
           ],
         ),
       ),

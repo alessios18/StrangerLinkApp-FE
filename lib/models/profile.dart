@@ -6,7 +6,6 @@ part 'profile.g.dart';
 @JsonSerializable()
 class Profile extends Equatable {
 
-  @JsonKey(name: 'display_name')
   final String displayName;
 
   final int? age;
@@ -14,7 +13,6 @@ class Profile extends Equatable {
   final String? gender;
   final String? bio;
 
-  @JsonKey(name: 'profile_image_url')
   final String? profileImageUrl;
 
   final List<String>? interests;

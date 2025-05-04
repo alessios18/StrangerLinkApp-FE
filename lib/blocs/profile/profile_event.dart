@@ -44,3 +44,12 @@ class RemoveInterest extends ProfileEvent {
   @override
   List<Object?> get props => [interest];
 }
+
+class SetEditMode extends ProfileEvent {
+  final bool isEditing;
+
+  const SetEditMode({required this.isEditing});
+
+  @override
+  List<Object?> get props => [isEditing];
+}

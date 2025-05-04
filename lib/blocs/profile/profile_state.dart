@@ -13,11 +13,20 @@ class ProfileLoading extends ProfileState {}
 
 class ProfileLoaded extends ProfileState {
   final Profile profile;
+  final bool isEditing;
 
-  const ProfileLoaded(this.profile);
+  const ProfileLoaded(this.profile, {this.isEditing = false});
 
   @override
-  List<Object?> get props => [profile];
+  List<Object?> get props => [profile, isEditing];
+
+  // Metodo per creare una copia con nuovo stato isEditing
+  ProfileLoaded copyWith({Profile? profile, bool? isEditing}) {
+    return ProfileLoaded(
+      profile ?? this.profile,
+      isEditing: isEditing ?? this.isEditing,
+    );
+  }
 }
 
 class ProfileUpdated extends ProfileState {
@@ -46,3 +55,5 @@ class ProfileError extends ProfileState {
   @override
   List<Object?> get props => [message];
 }
+
+

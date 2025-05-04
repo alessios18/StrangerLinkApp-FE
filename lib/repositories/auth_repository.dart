@@ -70,11 +70,23 @@ class AuthRepository {
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
         await _storageService.saveToken(data['token']);
-        return User.fromJson(data);
+        return User.fromJson(data['user']);
+      } else {
+        // Gestione degli errori specifici del backend
+        final errorData = jsonDecode(response.body);
+
+        if (response.statusCode == 400) {
+          if (errorData['error']?.contains('Username already taken') ?? false) {
+            throw Exception('Username already taken');
+          } else if (errorData['error']?.contains('Email already in use') ?? false) {
+            throw Exception('Email already in use');
+          }
+        }
+
+        throw Exception('Registration failed: ${errorData['error'] ?? 'Unknown error'}');
       }
-      return null;
-    } catch (_) {
-      return null;
+    } catch (e) {
+      throw e; // Propaga l'errore al RegisterBloc
     }
   }
 

@@ -1,8 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:provider/provider.dart';
+import 'package:stranger_link_app/blocs/profile/profile_bloc.dart';
+import 'package:stranger_link_app/blocs/registration/register_bloc.dart';
 import 'package:stranger_link_app/repositories/profile_repository.dart';
 import 'package:stranger_link_app/screens/login/login_screen.dart';
+import 'package:stranger_link_app/screens/registration/registration_screen.dart';
 import 'blocs/auth/auth_bloc.dart';
 import 'repositories/auth_repository.dart';
 import 'screens/profile/profile_screen.dart';
@@ -33,6 +36,16 @@ class MyApp extends StatelessWidget {
               authRepository: context.read<AuthRepository>(),
             )..add(AppStarted()),
           ),
+          BlocProvider<ProfileBloc>(
+            create: (context) => ProfileBloc(
+              profileRepository: context.read<ProfileRepository>(),
+            )..add(FetchProfile()),
+          ),
+          BlocProvider<RegisterBloc>(
+            create: (context) => RegisterBloc(
+              authRepository: context.read<AuthRepository>(),
+            ),
+          )
           // Aggiungi altri BLoC se necessario
         ],
         child: MaterialApp(
@@ -44,7 +57,7 @@ class MyApp extends StatelessWidget {
           home: const AuthWrapper(),
           routes: {
             '/login': (context) => const LoginScreen(),
-            // '/register': (context) => const RegisterScreen(),
+            '/register': (context) => const RegisterScreen(),
             '/profile': (context) => const ProfileScreen(),
           },
         ),
@@ -69,6 +82,19 @@ class AuthWrapper extends StatelessWidget {
             );
 
           case AuthAuthenticated():
+          // Se l'utente ha appena effettuato la registrazione, controllalo dall'epoca
+            final user = state.user;
+            // Controlla se l'utente è stato creato negli ultimi 5 minuti
+            final isNewRegistration = DateTime.now().difference(user.createdAt).inMinutes < 5;
+
+            // Se è un nuovo utente, imposta immediatamente la modalità di modifica
+            if (isNewRegistration) {
+              // Usa una callout post-frame per assicurarti che il ProfileBloc sia già stato creato
+              WidgetsBinding.instance.addPostFrameCallback((_) {
+                context.read<ProfileBloc>().add(const SetEditMode(isEditing: true));
+              });
+            }
+
             return const ProfileScreen();
 
           case AuthUnauthenticated():
