@@ -3,6 +3,8 @@ import 'package:equatable/equatable.dart';
 import 'package:json_annotation/json_annotation.dart';
 import 'package:stranger_link_app/models/user.dart';
 
+import '../util/date_time_utils.dart';
+
 part 'conversation.g.dart';
 
 @JsonSerializable()
@@ -10,7 +12,7 @@ class Conversation extends Equatable {
   final int id;
   final User otherUser;
   final String? lastMessage;
-  @JsonKey(name: 'lastMessageTimestamp',fromJson: _dateTimeFromJson, toJson: _dateTimeToJson)
+  @JsonKey(name: 'lastMessageTimestamp',fromJson: DateTimeUtils.fromJsonNullable, toJson: DateTimeUtils.toJsonNullable)
   final DateTime? lastMessageTimestamp;
   final int unreadCount;
   final bool? isOnline;
@@ -47,30 +49,6 @@ class Conversation extends Equatable {
       isOnline: isOnline ?? this.isOnline,
     );
   }
-
-  static DateTime? _dateTimeFromJson(dynamic value) {
-    if(value == null){
-      return null;
-    }
-    if (value is int) {
-      return DateTime.fromMillisecondsSinceEpoch(value);
-    } else if (value is num) {
-      return DateTime.fromMillisecondsSinceEpoch(value.toInt());
-    } else if (value is String) {
-      // Gestione del caso in cui il valore sia una stringa (come in precedenza)
-      return DateTime.parse(value);
-    }
-    // Fallback
-    return DateTime.now();
-  }
-
-  static int? _dateTimeToJson(DateTime? dateTime) {
-    if(dateTime == null){
-      return null;
-    }
-    return dateTime.millisecondsSinceEpoch;
-  }
-
   @override
   List<Object?> get props => [
     id,

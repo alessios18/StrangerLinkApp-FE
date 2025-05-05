@@ -120,7 +120,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
       conversationId: conversationId,
       receiverId: widget.conversation.otherUser.id,
       content: content,
-      timestamp: DateTime.now(),
+      timestamp: DateTime.now().toUtc(),
       type: messageType,
       status: MessageStatus.SENT,
     );
@@ -326,7 +326,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
                         return Column(
                           children: [
                             if (showDate)
-                              _buildDateSeparator(message.timestamp),
+                              _buildDateSeparator(message.timestamp.toLocal()),
                             _buildMessageBubble(message, isFromMe),
                           ],
                         );
@@ -539,7 +539,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
               mainAxisAlignment: MainAxisAlignment.end,
               children: [
                 Text(
-                  DateFormat.Hm().format(message.timestamp),
+                  DateFormat.Hm().format(message.timestamp.toLocal()),
                   style: TextStyle(
                     fontSize: 10,
                     color: isFromMe ? Colors.white70 : Colors.grey[600],

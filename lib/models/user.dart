@@ -1,6 +1,8 @@
 import 'package:equatable/equatable.dart';
 import 'package:json_annotation/json_annotation.dart';
 
+import '../util/date_time_utils.dart';
+
 part 'user.g.dart';
 
 @JsonSerializable()
@@ -10,10 +12,10 @@ class User extends Equatable {
   final String email;
   final String? profileImageUrl;
 
-  @JsonKey(name: 'createdAt', fromJson: _dateTimeFromJson, toJson: _dateTimeToJson)
+  @JsonKey(name: 'createdAt', fromJson: DateTimeUtils.fromJson, toJson: DateTimeUtils.toJson)
   final DateTime createdAt;
 
-  @JsonKey(name: 'lastActive', fromJson: _dateTimeFromJson, toJson: _dateTimeToJson)
+  @JsonKey(name: 'lastActive', fromJson: DateTimeUtils.fromJson, toJson: DateTimeUtils.toJson)
   final DateTime lastActive;
 
   const User({
@@ -25,23 +27,6 @@ class User extends Equatable {
     this.profileImageUrl
   });
 
-  // Funzioni statiche per la conversione che gestiscono diversi tipi di input
-  static DateTime _dateTimeFromJson(dynamic value) {
-    if (value is int) {
-      return DateTime.fromMillisecondsSinceEpoch(value);
-    } else if (value is num) {
-      return DateTime.fromMillisecondsSinceEpoch(value.toInt());
-    } else if (value is String) {
-      // Gestione del caso in cui il valore sia una stringa (come in precedenza)
-      return DateTime.parse(value);
-    }
-    // Fallback
-    return DateTime.now();
-  }
-
-  static int _dateTimeToJson(DateTime dateTime) {
-    return dateTime.millisecondsSinceEpoch;
-  }
 
   factory User.fromJson(Map<String, dynamic> json) => _$UserFromJson(json);
 

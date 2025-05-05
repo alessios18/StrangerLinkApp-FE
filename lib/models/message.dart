@@ -2,6 +2,8 @@
 import 'package:equatable/equatable.dart';
 import 'package:json_annotation/json_annotation.dart';
 
+import '../util/date_time_utils.dart';
+
 part 'message.g.dart';
 
 @JsonSerializable()
@@ -11,7 +13,7 @@ class Message extends Equatable {
   final int conversationId;
   final String content;
 
-  @JsonKey(name: 'timestamp', fromJson: _dateTimeFromJson, toJson: _dateTimeToJson)
+  @JsonKey(name: 'timestamp', fromJson: DateTimeUtils.fromJson, toJson: DateTimeUtils.toJson)
   final DateTime timestamp;
   final MessageType type;
   final MessageStatus status;
@@ -37,23 +39,6 @@ class Message extends Equatable {
   }
 
   Map<String, dynamic> toJson() => _$MessageToJson(this);
-
-  static DateTime _dateTimeFromJson(dynamic value) {
-    if (value is int) {
-      return DateTime.fromMillisecondsSinceEpoch(value);
-    } else if (value is num) {
-      return DateTime.fromMillisecondsSinceEpoch(value.toInt());
-    } else if (value is String) {
-      // Gestione del caso in cui il valore sia una stringa (come in precedenza)
-      return DateTime.parse(value);
-    }
-    // Fallback
-    return DateTime.now();
-  }
-
-  static int _dateTimeToJson(DateTime dateTime) {
-    return dateTime.millisecondsSinceEpoch;
-  }
 
   Message copyWith({
     int? id,

@@ -141,40 +141,68 @@ class ChatBloc extends Bloc<ChatEvent, ChatState> {
       ) async {
     print('🔍 DEBUG: Gestore _onMessageReceived chiamato: ${event.message.content}');
 
-    // Verifichiamo che lo stato corrente sia accessibile
+    // Get current state
     final currentState = state;
     print('🔍 DEBUG: Stato corrente: ${currentState.runtimeType}');
 
-    // Forziamo il refresh della lista conversazioni
-    add(LoadConversations());
+    // Force refresh of conversations list
+    // add(LoadConversations());
 
-    // Se siamo nella conversazione rilevante
+    // If we're in the relevant conversation
     if (currentState is ChatMessagesLoaded &&
         currentState.conversationId == event.message.conversationId) {
-
       print('🔍 DEBUG: Aggiornamento messaggi per conversazione corrente');
 
-      // Aggiungiamo il messaggio alla lista
+      // Create a new list that includes all existing messages + the new one
       final updatedMessages = List<Message>.from(currentState.messages);
-      updatedMessages.insert(0, event.message);
 
-      // Ordiniamo i messaggi
-      updatedMessages.sort((a, b) => b.timestamp.compareTo(a.timestamp));
+      // Add the new message if it's not already there
+      bool messageExists = updatedMessages.any((m) =>
+      m.id == event.message.id ||
+          (m.timestamp.isAtSameMomentAs(event.message.timestamp) &&
+              m.senderId == event.message.senderId &&
+              m.content == event.message.content));
 
-      // Emettiamo il nuovo stato
-      try {
-        print('🔍 DEBUG: Emissione nuovo stato con messaggio aggiunto');
-        emit(currentState.copyWith(
-          messages: updatedMessages,
-          scrollToBottom: true,
-        ));
-        print('🔍 DEBUG: Nuovo stato emesso con successo');
-      } catch (e) {
-        print('🔴 ERRORE nell\'emissione del nuovo stato: $e');
+      if (!messageExists) {
+        updatedMessages.add(event.message);
+
+        // Apply proper sorting
+        final sortedMessages = _sortAndGroupMessages(updatedMessages);
+
+        // Debug info
+        print('Message ordering debug:');
+        for (var msg in sortedMessages) {
+          print('${msg.timestamp}: ${msg.content.substring(0, msg.content.length > 10 ? 10 : msg.content.length)}...');
+        }
+        // Emit new state with updated messages
+        try {
+          print('🔍 DEBUG: Emissione nuovo stato con messaggio aggiunto');
+          emit(ChatMessagesLoaded(
+            conversationId: currentState.conversationId,
+            otherUserId: currentState.otherUserId,
+            messages: sortedMessages,
+            hasMoreMessages: currentState.hasMoreMessages,
+            isOtherUserTyping: currentState.isOtherUserTyping,
+            isOtherUserOnline: currentState.isOtherUserOnline,
+            scrollToBottom: true,
+          ));
+          print('🔍 DEBUG: Nuovo stato emesso con successo');
+        } catch (e) {
+          print('🔴 ERRORE nell\'emissione del nuovo stato: $e');
+        }
+      } else {
+        print('🔍 DEBUG: Il messaggio esiste già nella lista, nessun aggiornamento necessario');
       }
     } else {
       print('🔍 DEBUG: Messaggio ricevuto per una conversazione diversa');
     }
+  }
+  List<Message> _sortAndGroupMessages(List<Message> messages) {
+    // First sort by timestamp (newest first for chat display)
+    messages.sort((a, b) => b.timestamp.compareTo(a.timestamp));
+
+    // The messages are now correctly sorted chronologically
+    return messages;
   }
 
   Future<void> _onLoadConversations(
