@@ -11,7 +11,7 @@ import '../services/storage_service.dart';
 class ChatRepository {
   final String baseUrl = 'http://192.168.2.101:8080/api';
   // Schema URL corretto per WebSocket: ws:// invece di http://
-  final String wsUrl = 'ws://192.168.2.101:8080/ws';
+  final String wsUrl = 'http://192.168.2.101:8080/ws';
   final StorageService _storageService = StorageService();
   StompClient? _stompClient;
   bool _isConnecting = false;
@@ -55,7 +55,7 @@ class ChatRepository {
 
       // Configurazione standard per StompClient
       _stompClient = StompClient(
-        config: StompConfig(
+        config: StompConfig.sockJS(
           url: wsUrl,  // Endpoint WebSocket diretto
           onConnect: (StompFrame frame) {
             print('【WebSocket】 CONNESSO! Frame: ${frame.headers}');
