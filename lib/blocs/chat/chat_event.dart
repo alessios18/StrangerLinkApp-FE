@@ -98,4 +98,25 @@ class UserStatusChanged extends ChatEvent {
   List<Object?> get props => [userId, isOnline];
 }
 
+class TypingIndicatorReceived extends ChatEvent {
+  final int conversationId;
+  final int userId;
+  final bool isTyping;
+
+  const TypingIndicatorReceived(this.conversationId, this.userId, this.isTyping);
+
+  @override
+  List<Object?> get props => [conversationId, userId, isTyping];
+}
+
+class ForceRefreshMessages extends ChatEvent {
+  final int conversationId;
+
+  const ForceRefreshMessages(this.conversationId);
+
+  @override
+  List<Object?> get props => [conversationId];
+}
+
+
 class ConnectionStatusChanged extends ChatEvent {}

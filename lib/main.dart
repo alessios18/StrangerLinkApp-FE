@@ -120,26 +120,24 @@ class AuthWrapper extends StatelessWidget {
             );
 
           case AuthAuthenticated():
-          // Se l'utente ha appena effettuato la registrazione, controllalo dall'epoca
             final user = state.user;
-            // Controlla se l'utente è stato creato negli ultimi 5 minuti
+            // Check if user is new registration
             final isNewRegistration = DateTime.now().difference(user.createdAt).inMinutes < 5;
 
-            // Se è un nuovo utente, imposta immediatamente la modalità di modifica
+            // Always connect to WebSocket when authenticated
+            final chatRepository = context.read<ChatRepository>();
+            if (!chatRepository.isConnected) {
+              chatRepository.connect(state.user.id);
+            }
+
             if (isNewRegistration) {
-              // Usa una callout post-frame per assicurarti che il ProfileBloc sia già stato creato
               WidgetsBinding.instance.addPostFrameCallback((_) {
                 context.read<ProfileBloc>().add(const SetEditMode(isEditing: true));
               });
-            }else{
-              final chatRepository = context.read<ChatRepository>();
-              if (!chatRepository.isConnected) {
-                chatRepository.connect(state.user.id);
-              }
-              return ChatListScreen();
+              return const ProfileScreen();
+            } else {
+              return const ChatListScreen();
             }
-
-            return const ProfileScreen();
 
           case AuthUnauthenticated():
             context.read<ChatRepository>().disconnect();
