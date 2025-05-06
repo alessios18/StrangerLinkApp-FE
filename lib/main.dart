@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:provider/provider.dart';
 import 'package:stranger_link_app/blocs/chat/chat_bloc.dart';
+import 'package:stranger_link_app/blocs/conversation_list/conversation_list_bloc.dart';
 import 'package:stranger_link_app/blocs/country/country_bloc.dart';
 import 'package:stranger_link_app/blocs/profile/profile_bloc.dart';
 import 'package:stranger_link_app/blocs/profile_form/profile_form_bloc.dart';
@@ -84,6 +85,11 @@ class MyApp extends StatelessWidget {
           ),
           BlocProvider<ProfileFormBloc>(
             create: (context) => ProfileFormBloc(),
+          ),
+          BlocProvider<ConversationListBloc>(
+            create: (context) => ConversationListBloc(
+              chatBloc: context.read<ChatBloc>(),
+            ),
           ),
         ],
         child: MaterialApp(

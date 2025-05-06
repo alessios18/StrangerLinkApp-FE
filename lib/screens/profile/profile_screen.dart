@@ -301,7 +301,6 @@ class ProfileScreen extends StatelessWidget {
                 DropdownMenuItem(value: 'Male', child: Text('Uomo')),
                 DropdownMenuItem(value: 'Female', child: Text('Donna')),
                 DropdownMenuItem(value: 'Non-binary', child: Text('Non binario')),
-                DropdownMenuItem(value: 'Prefer not to say', child: Text('Preferisco non specificare')),
               ],
               onChanged: (gender) {
                 formBloc.add(UpdateGender(gender));
@@ -673,9 +672,9 @@ class ProfileScreen extends StatelessWidget {
               border: OutlineInputBorder(),
             ),
             items: const [
-              DropdownMenuItem(value: 'male', child: Text('Uomo')),
-              DropdownMenuItem(value: 'female', child: Text('Donna')),
-              DropdownMenuItem(value: 'all', child: Text('Tutti')),
+              DropdownMenuItem(value: 'Male', child: Text('Uomo')),
+              DropdownMenuItem(value: 'Female', child: Text('Donna')),
+              DropdownMenuItem(value: 'All', child: Text('Tutti')),
             ],
             onChanged: (value) {
               if (value != null) {
