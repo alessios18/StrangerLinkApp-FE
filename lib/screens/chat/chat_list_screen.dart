@@ -26,7 +26,7 @@ class _ChatListScreenState extends State<ChatListScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Chat'),
+        title: const Text('Chats'),
         actions: [
           IconButton(
             icon: const Icon(Icons.refresh),
@@ -83,7 +83,8 @@ class _ChatListScreenState extends State<ChatListScreen> {
                   const SizedBox(height: 24),
                   ElevatedButton.icon(
                     onPressed: () {
-                      Navigator.pushNamed(context, '/search');
+                      // Navigation is now handled by the bottom nav bar
+                      // So we don't need to navigate here
                     },
                     icon: const Icon(Icons.search),
                     label: const Text('Find People'),
@@ -130,7 +131,7 @@ class _ChatListScreenState extends State<ChatListScreen> {
                 ? Text(otherUser.username.substring(0, 1).toUpperCase())
                 : null,
           ),
-          if (conversation.isOnline != null)
+          if (conversation.isOnline != null && conversation.isOnline!)
             Positioned(
               right: 0,
               bottom: 0,
@@ -201,7 +202,10 @@ class _ChatListScreenState extends State<ChatListScreen> {
           MaterialPageRoute(
             builder: (context) => ChatDetailScreen(conversation: conversation),
           ),
-        );
+        ).then((_) {
+          // Refresh the conversation list when returning from chat detail
+          context.read<ChatBloc>().add(LoadConversations());
+        });
       },
     );
   }

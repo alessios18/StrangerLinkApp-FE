@@ -11,10 +11,9 @@ import 'package:stranger_link_app/repositories/country_repository.dart';
 import 'package:stranger_link_app/repositories/profile_repository.dart';
 import 'package:stranger_link_app/repositories/search_preference_repository.dart';
 import 'package:stranger_link_app/repositories/user_repository.dart';
-import 'package:stranger_link_app/screens/chat/chat_list_screen.dart';
 import 'package:stranger_link_app/screens/login/login_screen.dart';
+import 'package:stranger_link_app/screens/main/main_screen.dart';
 import 'package:stranger_link_app/screens/registration/registration_screen.dart';
-import 'package:stranger_link_app/screens/search/user_search_screen.dart';
 import 'blocs/auth/auth_bloc.dart';
 import 'repositories/auth_repository.dart';
 import 'screens/profile/profile_screen.dart';
@@ -33,7 +32,8 @@ class MyApp extends StatelessWidget {
       providers: [
         RepositoryProvider<AuthRepository>(
           create: (context) => AuthRepository(),
-        ),RepositoryProvider<ProfileRepository>(
+        ),
+        RepositoryProvider<ProfileRepository>(
           create: (context) => ProfileRepository(),
         ),
         RepositoryProvider<CountryRepository>(
@@ -48,7 +48,6 @@ class MyApp extends StatelessWidget {
         RepositoryProvider<UserRepository>(
           create: (context) => UserRepository(),
         ),
-        // Aggiungi altri repository se necessario
       ],
       child: MultiBlocProvider(
         providers: [
@@ -60,7 +59,7 @@ class MyApp extends StatelessWidget {
           BlocProvider<ProfileBloc>(
             create: (context) => ProfileBloc(
               profileRepository: context.read<ProfileRepository>(),
-            )..add(FetchProfile()),
+            ),
           ),
           BlocProvider<RegisterBloc>(
             create: (context) => RegisterBloc(
@@ -82,21 +81,18 @@ class MyApp extends StatelessWidget {
               chatRepository: context.read<ChatRepository>(),
             ),
           ),
-          // Aggiungi altri BLoC se necessario
         ],
         child: MaterialApp(
           title: 'Stranger Link App',
           theme: ThemeData(
             colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepPurple),
-            useMaterial3: true,  // Per Material 3
+            useMaterial3: true,
           ),
           home: const AuthWrapper(),
           routes: {
             '/login': (context) => const LoginScreen(),
             '/register': (context) => const RegisterScreen(),
             '/profile': (context) => const ProfileScreen(),
-            '/search': (context) => const UserSearchScreen(), // Add this line
-            '/chat': (context) => const ChatListScreen(),
           },
         ),
       ),
@@ -130,13 +126,20 @@ class AuthWrapper extends StatelessWidget {
               chatRepository.connect(state.user.id);
             }
 
+            // If new user, load profile with edit mode
             if (isNewRegistration) {
               WidgetsBinding.instance.addPostFrameCallback((_) {
+                context.read<ProfileBloc>().add(FetchProfile());
                 context.read<ProfileBloc>().add(const SetEditMode(isEditing: true));
               });
               return const ProfileScreen();
             } else {
-              return const ChatListScreen();
+              // Load profile data in background
+              WidgetsBinding.instance.addPostFrameCallback((_) {
+                context.read<ProfileBloc>().add(FetchProfile());
+              });
+              // Return main screen with navigation
+              return const MainScreen();
             }
 
           case AuthUnauthenticated():
@@ -144,7 +147,6 @@ class AuthWrapper extends StatelessWidget {
             return const LoginScreen();
 
           case AuthFailure():
-          // Mostra un messaggio di errore e poi la schermata di login
             return LoginScreen(errorMessage: state.error);
 
           default:

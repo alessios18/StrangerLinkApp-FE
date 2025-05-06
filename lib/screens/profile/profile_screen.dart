@@ -127,7 +127,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
       final profile = Profile(
         displayName: _displayNameController.text,
         age: int.tryParse(_ageController.text),
-        country: _selectedCountry, // Usa l'oggetto Country completo
+        country: _selectedCountry,
         gender: _selectedGender,
         bio: _bioController.text,
         interests: _interests,
