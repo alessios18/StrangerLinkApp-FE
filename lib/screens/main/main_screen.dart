@@ -20,7 +20,7 @@ class _MainScreenState extends State<MainScreen> {
   final List<Widget> _screens = [
     const ChatListScreen(),
     const UserSearchScreen(),
-    const ProfileScreen(),
+    ProfileScreen(),
   ];
 
   @override

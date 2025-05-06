@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import 'package:stranger_link_app/blocs/chat/chat_bloc.dart';
 import 'package:stranger_link_app/blocs/country/country_bloc.dart';
 import 'package:stranger_link_app/blocs/profile/profile_bloc.dart';
+import 'package:stranger_link_app/blocs/profile_form/profile_form_bloc.dart';
 import 'package:stranger_link_app/blocs/registration/register_bloc.dart';
 import 'package:stranger_link_app/blocs/search_preference/search_preference_bloc.dart';
 import 'package:stranger_link_app/repositories/chat_repository.dart';
@@ -81,6 +82,9 @@ class MyApp extends StatelessWidget {
               chatRepository: context.read<ChatRepository>(),
             ),
           ),
+          BlocProvider<ProfileFormBloc>(
+            create: (context) => ProfileFormBloc(),
+          ),
         ],
         child: MaterialApp(
           title: 'Stranger Link App',
@@ -92,7 +96,7 @@ class MyApp extends StatelessWidget {
           routes: {
             '/login': (context) => const LoginScreen(),
             '/register': (context) => const RegisterScreen(),
-            '/profile': (context) => const ProfileScreen(),
+            '/profile': (context) => ProfileScreen(),
           },
         ),
       ),
@@ -132,7 +136,7 @@ class AuthWrapper extends StatelessWidget {
                 context.read<ProfileBloc>().add(FetchProfile());
                 context.read<ProfileBloc>().add(const SetEditMode(isEditing: true));
               });
-              return const ProfileScreen();
+              return ProfileScreen();
             } else {
               // Load profile data in background
               WidgetsBinding.instance.addPostFrameCallback((_) {
