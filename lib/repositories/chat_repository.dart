@@ -10,24 +10,108 @@ import '../services/storage_service.dart';
 
 class ChatRepository {
   final String baseUrl = 'http://192.168.2.101:8080/api';
-  // Schema URL corretto per WebSocket: ws:// invece di http://
   final String wsUrl = 'http://192.168.2.101:8080/ws';
   final StorageService _storageService = StorageService();
   StompClient? _stompClient;
   bool _isConnecting = false;
   int _userId = 0;
 
-  // Callbacks per gli eventi WebSocket
-  Function(Message)? onMessageReceived;
-  Function(Message)? onMessageStatusChanged;
-  Function(int, bool)? onUserStatusChanged;
-  Function()? onConnectionChanged;
-  Function()? onNewConversation;
-  Function(int, int, bool)? onTypingIndicator;
+  // Cambia da singole callback a liste di callback
+  final List<Function(Message)> _messageReceivedCallbacks = [];
+  final List<Function(Message)> _messageStatusCallbacks = [];
+  final List<Function(int, bool)> _userStatusCallbacks = [];
+  final List<Function()> _connectionCallbacks = [];
+  final List<Function()> _newConversationCallbacks = [];
+  final List<Function(int, int, bool)> _typingCallbacks = [];
 
   bool get isConnected => _stompClient?.connected ?? false;
 
-  // Connessione WebSocket con debug migliorato
+  // Metodi per registrare e deregistrare le callback
+  void addMessageReceivedListener(Function(Message) callback) {
+    _messageReceivedCallbacks.add(callback);
+  }
+
+  void removeMessageReceivedListener(Function(Message) callback) {
+    _messageReceivedCallbacks.remove(callback);
+  }
+
+  void addMessageStatusListener(Function(Message) callback) {
+    _messageStatusCallbacks.add(callback);
+  }
+
+  void removeMessageStatusListener(Function(Message) callback) {
+    _messageStatusCallbacks.remove(callback);
+  }
+
+  void addUserStatusListener(Function(int, bool) callback) {
+    _userStatusCallbacks.add(callback);
+  }
+
+  void removeUserStatusListener(Function(int, bool) callback) {
+    _userStatusCallbacks.remove(callback);
+  }
+
+  void addConnectionListener(Function() callback) {
+    _connectionCallbacks.add(callback);
+  }
+
+  void removeConnectionListener(Function() callback) {
+    _connectionCallbacks.remove(callback);
+  }
+
+  void addNewConversationListener(Function() callback) {
+    _newConversationCallbacks.add(callback);
+  }
+
+  void removeNewConversationListener(Function() callback) {
+    _newConversationCallbacks.remove(callback);
+  }
+
+  void addTypingListener(Function(int, int, bool) callback) {
+    _typingCallbacks.add(callback);
+  }
+
+  void removeTypingListener(Function(int, int, bool) callback) {
+    _typingCallbacks.remove(callback);
+  }
+
+  // Helper methods to invoke all registered callbacks
+  void _notifyMessageReceived(Message message) {
+    for (var callback in _messageReceivedCallbacks) {
+      callback(message);
+    }
+  }
+
+  void _notifyMessageStatus(Message message) {
+    for (var callback in _messageStatusCallbacks) {
+      callback(message);
+    }
+  }
+
+  void _notifyUserStatus(int userId, bool isOnline) {
+    for (var callback in _userStatusCallbacks) {
+      callback(userId, isOnline);
+    }
+  }
+
+  void _notifyConnectionChanged() {
+    for (var callback in _connectionCallbacks) {
+      callback();
+    }
+  }
+
+  void _notifyNewConversation() {
+    for (var callback in _newConversationCallbacks) {
+      callback();
+    }
+  }
+
+  void _notifyTypingIndicator(int conversationId, int userId, bool isTyping) {
+    for (var callback in _typingCallbacks) {
+      callback(conversationId, userId, isTyping);
+    }
+  }
+
   Future<void> connect(int userId) async {
     _userId = userId;
 
@@ -53,10 +137,9 @@ class ChatRepository {
 
       print('【WebSocket】 Tentativo di connessione a $wsUrl');
 
-      // Configurazione standard per StompClient
       _stompClient = StompClient(
         config: StompConfig.sockJS(
-          url: wsUrl,  // Endpoint WebSocket diretto
+          url: wsUrl,
           onConnect: (StompFrame frame) {
             print('【WebSocket】 CONNESSO! Frame: ${frame.headers}');
             _isConnecting = false;
@@ -77,9 +160,8 @@ class ChatRepository {
                       sendDeliveryReceipt(message.conversationId);
                     }
 
-                    if (onMessageReceived != null) {
-                      onMessageReceived!(message);
-                    }
+                    // Notifica tutti i listener
+                    _notifyMessageReceived(message);
                   } catch (e) {
                     print('【WebSocket】 ERRORE nel parsing del messaggio: $e');
                   }
@@ -95,15 +177,16 @@ class ChatRepository {
                   try {
                     final message = Message.fromJson(jsonDecode(frame.body!));
                     print('⚠️⚠️⚠️ Messaggio ${message.id} ora è ${message.status} ⚠️⚠️⚠️');
-                    if (onMessageStatusChanged != null) {
-                      onMessageStatusChanged!(message);
-                    }
+
+                    // Notifica tutti i listener
+                    _notifyMessageStatus(message);
                   } catch (e) {
                     print('Errore: $e');
                   }
                 }
               },
             );
+
             // Sottoscrizione per notifiche di stato utente
             print('【WebSocket】 Sottoscrizione a /user/$userId/queue/user-status');
             _stompClient?.subscribe(
@@ -113,8 +196,8 @@ class ChatRepository {
                 if (frame.body != null) {
                   try {
                     final status = jsonDecode(frame.body!);
-                    if (onUserStatusChanged != null && status['userId'] != null) {
-                      onUserStatusChanged!(
+                    if (status['userId'] != null) {
+                      _notifyUserStatus(
                         status['userId'],
                         status['online'] ?? false,
                       );
@@ -132,9 +215,7 @@ class ChatRepository {
               destination: '/user/$userId/queue/new-conversation',
               callback: (StompFrame frame) {
                 print('【WebSocket】 RICEVUTA NUOVA CONVERSAZIONE');
-                if (onNewConversation != null) {
-                  onNewConversation!();
-                }
+                _notifyNewConversation();
               },
             );
 
@@ -151,13 +232,11 @@ class ChatRepository {
                         data['userId'] != null &&
                         data.containsKey('typing')) {
 
-                      if (onTypingIndicator != null) {
-                        onTypingIndicator!(
-                            data['conversationId'],
-                            data['userId'],
-                            data['typing'] ?? false
-                        );
-                      }
+                      _notifyTypingIndicator(
+                          data['conversationId'],
+                          data['userId'],
+                          data['typing'] ?? false
+                      );
                     }
                   } catch (e) {
                     print('【WebSocket】 ERRORE nel parsing dell\'indicatore di digitazione: $e');
@@ -169,17 +248,13 @@ class ChatRepository {
             // Invia messaggio di presenza
             _sendUserPresence(userId);
 
-            if (onConnectionChanged != null) {
-              onConnectionChanged!();
-            }
+            _notifyConnectionChanged();
           },
           onDisconnect: (StompFrame frame) {
             print('【WebSocket】 DISCONNESSO. Frame: ${frame.headers}');
             _isConnecting = false;
 
-            if (onConnectionChanged != null) {
-              onConnectionChanged!();
-            }
+            _notifyConnectionChanged();
 
             // Riconnessione dopo 5 secondi
             _scheduleReconnect();
@@ -258,6 +333,25 @@ class ChatRepository {
     }
   }
 
+  void sendDeliveryReceipt(int conversationId) {
+    if (_stompClient?.connected ?? false) {
+      try {
+        print('【WebSocket】 Invio notifica di consegna per conversazione: $conversationId');
+        _stompClient?.send(
+          destination: '/app/chat.delivered',
+          body: jsonEncode({
+            'conversationId': conversationId,
+            'userId': _userId
+          }),
+        );
+      } catch (e) {
+        print('【WebSocket】 ERRORE invio ricevuta di consegna: $e');
+      }
+    } else {
+      print('【WebSocket】 Impossibile inviare ricevuta: WebSocket non connesso');
+    }
+  }
+
   Future<List<Conversation>> getConversations() async {
     final token = await _storageService.getToken();
     if (token == null) {
@@ -307,25 +401,6 @@ class ChatRepository {
       }
     } catch (e) {
       throw Exception('Failed to load messages: $e');
-    }
-  }
-
-  void sendDeliveryReceipt(int conversationId) {
-    if (_stompClient?.connected ?? false) {
-      try {
-        print('【WebSocket】 Invio notifica di consegna per conversazione: $conversationId');
-        _stompClient?.send(
-          destination: '/app/chat.delivered',
-          body: jsonEncode({
-            'conversationId': conversationId,
-            'userId': _userId  // Aggiungi l'ID dell'utente corrente
-          }),
-        );
-      } catch (e) {
-        print('【WebSocket】 ERRORE invio ricevuta di consegna: $e');
-      }
-    } else {
-      print('【WebSocket】 Impossibile inviare ricevuta: WebSocket non connesso');
     }
   }
 

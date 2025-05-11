@@ -1,3 +1,4 @@
+// lib/blocs/chat_detail/chat_detail_bloc.dart
 import 'dart:async';
 import 'dart:io';
 import 'package:bloc/bloc.dart';
@@ -12,7 +13,6 @@ part 'chat_detail_state.dart';
 class ChatDetailBloc extends Bloc<ChatDetailEvent, ChatDetailState> {
   final chat.ChatBloc chatBloc;
   final ChatRepository chatRepository;
-  late StreamSubscription chatBlocSubscription;
   Timer? _typingTimer;
 
   ChatDetailBloc({
@@ -31,31 +31,47 @@ class ChatDetailBloc extends Bloc<ChatDetailEvent, ChatDetailState> {
     on<ClearSelectedImage>(_onClearSelectedImage);
     on<MessageStatusChanged>(_onMessageStatusChanged);
 
-    chatRepository.onMessageStatusChanged = (message) {
-      print('ChatDetailBloc: Ricevuto aggiornamento stato messaggio: ${message.id} -> ${message.status}');
-      add(MessageStatusChanged(message));
-    };
+    // Register callbacks for this chat detail
+    _registerRepositoryCallbacks();
+  }
 
-    // Listen to ChatBloc for relevant updates
-    chatBlocSubscription = chatBloc.stream.listen((chatState) {
-      if (chatState is chat.ChatMessagesLoaded && state is ChatDetailLoaded) {
-        final currentState = state as ChatDetailLoaded;
-        if (currentState.conversationId == chatState.conversationId) {
-          // Update messages if they've changed
-          add(MessageReceived(chatState.messages));
+  void _registerRepositoryCallbacks() {
+    // Add all event handlers to the repository
+    chatRepository.addMessageReceivedListener(_handleMessageReceived);
+    chatRepository.addMessageStatusListener(_handleMessageStatusChanged);
+    chatRepository.addUserStatusListener(_handleUserStatusChanged);
+    chatRepository.addTypingListener(_handleTypingIndicator);
+  }
 
-          // Update typing status
-          if (currentState.isOtherUserTyping != chatState.isOtherUserTyping) {
-            add(TypingIndicatorReceived(chatState.isOtherUserTyping));
-          }
+  // Callback handler functions
+  void _handleMessageReceived(Message message) {
+    final currentState = state;
+    if (currentState is ChatDetailLoaded &&
+        currentState.conversationId == message.conversationId) {
+      add(MessageReceived([message]));
+    }
+  }
 
-          // Update online status
-          if (currentState.isOtherUserOnline != chatState.isOtherUserOnline) {
-            add(UserStatusChanged(chatState.isOtherUserOnline));
-          }
-        }
-      }
-    });
+  void _handleMessageStatusChanged(Message message) {
+    print('ChatDetailBloc: Ricevuto aggiornamento stato messaggio: ${message.id} -> ${message.status}');
+    add(MessageStatusChanged(message));
+  }
+
+  void _handleUserStatusChanged(int userId, bool isOnline) {
+    final currentState = state;
+    if (currentState is ChatDetailLoaded &&
+        currentState.otherUserId == userId) {
+      add(UserStatusChanged(isOnline));
+    }
+  }
+
+  void _handleTypingIndicator(int conversationId, int userId, bool isTyping) {
+    final currentState = state;
+    if (currentState is ChatDetailLoaded &&
+        currentState.conversationId == conversationId &&
+        currentState.otherUserId == userId) {
+      add(TypingIndicatorReceived(isTyping));
+    }
   }
 
   Future<void> _onLoadChatMessages(
@@ -384,7 +400,12 @@ class ChatDetailBloc extends Bloc<ChatDetailEvent, ChatDetailState> {
 
   @override
   Future<void> close() {
-    chatBlocSubscription.cancel();
+    // Remove all callbacks when the bloc is closed
+    chatRepository.removeMessageReceivedListener(_handleMessageReceived);
+    chatRepository.removeMessageStatusListener(_handleMessageStatusChanged);
+    chatRepository.removeUserStatusListener(_handleUserStatusChanged);
+    chatRepository.removeTypingListener(_handleTypingIndicator);
+
     _typingTimer?.cancel();
     return super.close();
   }

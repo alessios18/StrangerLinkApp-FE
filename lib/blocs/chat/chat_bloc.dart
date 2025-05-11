@@ -15,15 +15,8 @@ class ChatBloc extends Bloc<ChatEvent, ChatState> {
   final Map<int, bool> _typingUsers = {};
   final Map<int, bool> _onlineUsers = {};
 
-  // Subscription for WebSocket events
-  StreamSubscription? _webSocketSubscription;
-
-
   ChatBloc({required this.chatRepository}) : super(ChatInitial()) {
-    // Connect to WebSocket and set up event handlers
-    _setupWebSocketListeners();
-
-    // Events handlers
+    // Set up all event handlers
     on<LoadConversations>(_onLoadConversations);
     on<LoadMessages>(_onLoadMessages);
     on<LoadMoreMessages>(_onLoadMoreMessages);
@@ -37,49 +30,47 @@ class ChatBloc extends Bloc<ChatEvent, ChatState> {
     on<ConnectionStatusChanged>(_onConnectionStatusChanged);
     on<TypingIndicatorReceived>(_onTypingIndicatorReceived);
     on<ForceRefreshMessages>(_onForceRefreshMessages);
+
+    // Register callbacks with the repository
+    _registerRepositoryCallbacks();
   }
 
-  void _setupWebSocketListeners() {
-    // Set up WebSocket callbacks for real-time events
-    chatRepository.onMessageReceived = (message) {
-      print('🔍 DEBUG: WebSocket messaggio ricevuto nel callback: ${message.content}');
-      // Verifica che this.add() funzioni correttamente
-      try {
-        print('🔍 DEBUG: Emissione evento MessageReceived');
-        add(MessageReceived(message));
-        print('🔍 DEBUG: Evento MessageReceived emesso con successo');
-      } catch (e) {
-        print('🔴 ERRORE nell\'emissione dell\'evento MessageReceived: $e');
-      }
-    };
-
-    chatRepository.onMessageStatusChanged = (message) {
-      print('ChatBloc: Message status changed');
-      add(MessageStatusChanged(message));
-    };
-
-    chatRepository.onUserStatusChanged = (userId, isOnline) {
-      print('ChatBloc: User status changed - userId: $userId, isOnline: $isOnline');
-      add(UserStatusChanged(userId, isOnline));
-    };
-
-    chatRepository.onConnectionChanged = () {
-      print('ChatBloc: Connection status changed - isConnected: ${chatRepository.isConnected}');
-      add(ConnectionStatusChanged());
-    };
-
-    chatRepository.onNewConversation = () {
-      print('ChatBloc: New conversation notification received');
-      add(LoadConversations());
-    };
-
-    chatRepository.onTypingIndicator = (conversationId, userId, isTyping) {
-      print('ChatBloc: Typing indicator received - conversationId: $conversationId, userId: $userId, isTyping: $isTyping');
-      add(TypingIndicatorReceived(conversationId, userId, isTyping));
-    };
+  void _registerRepositoryCallbacks() {
+    // Add all callback functions to the repository
+    chatRepository.addMessageReceivedListener(_handleMessageReceived);
+    chatRepository.addMessageStatusListener(_handleMessageStatusUpdate);
+    chatRepository.addUserStatusListener(_handleUserStatusUpdate);
+    chatRepository.addConnectionListener(_handleConnectionChanged);
+    chatRepository.addNewConversationListener(_handleNewConversation);
+    chatRepository.addTypingListener(_handleTypingIndicator);
   }
 
-  Future<void> _onForceRefreshMessages(
+  // Callback handler functions
+  void _handleMessageReceived(Message message) {
+    add(MessageReceived(message));
+  }
+
+  void _handleMessageStatusUpdate(Message message) {
+    add(MessageStatusChanged(message));
+  }
+
+  void _handleUserStatusUpdate(int userId, bool isOnline) {
+    add(UserStatusChanged(userId, isOnline));
+  }
+
+  void _handleConnectionChanged() {
+    add(ConnectionStatusChanged());
+  }
+
+  void _handleNewConversation() {
+    add(LoadConversations());
+  }
+
+  void _handleTypingIndicator(int conversationId, int userId, bool isTyping) {
+    add(TypingIndicatorReceived(conversationId, userId, isTyping));
+  }
+
+  void _onForceRefreshMessages(
       ForceRefreshMessages event,
       Emitter<ChatState> emit,
       ) async {
@@ -108,95 +99,21 @@ class ChatBloc extends Bloc<ChatEvent, ChatState> {
       }
     } catch (e) {
       print("🔴 Errore nel forzare l'aggiornamento: $e");
-      }
+    }
   }
 
   Future<void> close() {
-    chatRepository.disconnect();
+    // Remove all callbacks when the bloc is closed
+    chatRepository.removeMessageReceivedListener(_handleMessageReceived);
+    chatRepository.removeMessageStatusListener(_handleMessageStatusUpdate);
+    chatRepository.removeUserStatusListener(_handleUserStatusUpdate);
+    chatRepository.removeConnectionListener(_handleConnectionChanged);
+    chatRepository.removeNewConversationListener(_handleNewConversation);
+    chatRepository.removeTypingListener(_handleTypingIndicator);
+
     return super.close();
   }
 
-  Future<void> _onTypingIndicatorReceived(
-      TypingIndicatorReceived event,
-      Emitter<ChatState> emit,
-      ) async {
-    final currentState = state;
-
-    if (currentState is ChatMessagesLoaded &&
-        currentState.conversationId == event.conversationId) {
-
-      // Update typing status in state
-      emit(currentState.copyWith(
-        isOtherUserTyping: event.isTyping,
-      ));
-    }
-
-    // Update typing status map for all conversations
-    _typingUsers[event.userId] = event.isTyping;
-  }
-
-  Future<void> _onMessageReceived(
-      MessageReceived event,
-      Emitter<ChatState> emit,
-      ) async {
-    print('🔍 DEBUG: Gestore _onMessageReceived chiamato: ${event.message.content}');
-
-    // Get current state
-    final currentState = state;
-    print('🔍 DEBUG: Stato corrente: ${currentState.runtimeType}');
-
-    // Force refresh of conversations list
-    // add(LoadConversations());
-
-    // If we're in the relevant conversation
-    if (currentState is ChatMessagesLoaded &&
-        currentState.conversationId == event.message.conversationId) {
-      print('🔍 DEBUG: Aggiornamento messaggi per conversazione corrente');
-
-      // Create a new list that includes all existing messages + the new one
-      final updatedMessages = List<Message>.from(currentState.messages);
-
-      // Add the new message if it's not already there
-      bool messageExists = updatedMessages.any((m) =>
-      m.id == event.message.id ||
-          (m.timestamp.isAtSameMomentAs(event.message.timestamp) &&
-              m.senderId == event.message.senderId &&
-              m.content == event.message.content));
-
-      if (!messageExists) {
-        updatedMessages.add(event.message);
-
-        // Apply proper sorting
-        final sortedMessages = _sortAndGroupMessages(updatedMessages);
-
-        // Debug info
-        print('Message ordering debug:');
-        for (var msg in sortedMessages) {
-          print('${msg.timestamp}: ${msg.content.substring(0, msg.content.length > 10 ? 10 : msg.content.length)}...');
-        }
-        // Emit new state with updated messages
-        try {
-          print('🔍 DEBUG: Emissione nuovo stato con messaggio aggiunto');
-          emit(ChatMessagesLoaded(
-            conversationId: currentState.conversationId,
-            otherUserId: currentState.otherUserId,
-            messages: sortedMessages,
-            hasMoreMessages: currentState.hasMoreMessages,
-            isOtherUserTyping: currentState.isOtherUserTyping,
-            isOtherUserOnline: currentState.isOtherUserOnline,
-            scrollToBottom: true,
-          ));
-          print('🔍 DEBUG: Nuovo stato emesso con successo');
-        } catch (e) {
-          print('🔴 ERRORE nell\'emissione del nuovo stato: $e');
-        }
-      } else {
-        print('🔍 DEBUG: Il messaggio esiste già nella lista, nessun aggiornamento necessario');
-      }
-    } else {
-      print('🔍 DEBUG: Messaggio ricevuto per una conversazione diversa');
-    }
-  }
   List<Message> _sortAndGroupMessages(List<Message> messages) {
     // First sort by timestamp (newest first for chat display)
     messages.sort((a, b) => b.timestamp.compareTo(a.timestamp));
@@ -440,11 +357,70 @@ class ChatBloc extends Bloc<ChatEvent, ChatState> {
       // Silently fail - this is not critical functionality
       print('Failed to set typing status: $e');
     }
-
   }
 
+  Future<void> _onMessageReceived(
+      MessageReceived event,
+      Emitter<ChatState> emit,
+      ) async {
+    print('🔍 DEBUG: Gestore _onMessageReceived chiamato: ${event.message.content}');
 
+    // Get current state
+    final currentState = state;
+    print('🔍 DEBUG: Stato corrente: ${currentState.runtimeType}');
 
+    // Force refresh of conversations list
+    // add(LoadConversations());
+
+    // If we're in the relevant conversation
+    if (currentState is ChatMessagesLoaded &&
+        currentState.conversationId == event.message.conversationId) {
+      print('🔍 DEBUG: Aggiornamento messaggi per conversazione corrente');
+
+      // Create a new list that includes all existing messages + the new one
+      final updatedMessages = List<Message>.from(currentState.messages);
+
+      // Add the new message if it's not already there
+      bool messageExists = updatedMessages.any((m) =>
+      m.id == event.message.id ||
+          (m.timestamp.isAtSameMomentAs(event.message.timestamp) &&
+              m.senderId == event.message.senderId &&
+              m.content == event.message.content));
+
+      if (!messageExists) {
+        updatedMessages.add(event.message);
+
+        // Apply proper sorting
+        final sortedMessages = _sortAndGroupMessages(updatedMessages);
+
+        // Debug info
+        print('Message ordering debug:');
+        for (var msg in sortedMessages) {
+          print('${msg.timestamp}: ${msg.content.substring(0, msg.content.length > 10 ? 10 : msg.content.length)}...');
+        }
+        // Emit new state with updated messages
+        try {
+          print('🔍 DEBUG: Emissione nuovo stato con messaggio aggiunto');
+          emit(ChatMessagesLoaded(
+            conversationId: currentState.conversationId,
+            otherUserId: currentState.otherUserId,
+            messages: sortedMessages,
+            hasMoreMessages: currentState.hasMoreMessages,
+            isOtherUserTyping: currentState.isOtherUserTyping,
+            isOtherUserOnline: currentState.isOtherUserOnline,
+            scrollToBottom: true,
+          ));
+          print('🔍 DEBUG: Nuovo stato emesso con successo');
+        } catch (e) {
+          print('🔴 ERRORE nell\'emissione del nuovo stato: $e');
+        }
+      } else {
+        print('🔍 DEBUG: Il messaggio esiste già nella lista, nessun aggiornamento necessario');
+      }
+    } else {
+      print('🔍 DEBUG: Messaggio ricevuto per una conversazione diversa');
+    }
+  }
 
   Future<void> _onMessageStatusChanged(
       MessageStatusChanged event,
@@ -507,6 +483,25 @@ class ChatBloc extends Bloc<ChatEvent, ChatState> {
       add(LoadMessages(
         currentState.conversationId,
         currentState.otherUserId,
+      ));
+    }
+  }
+
+  Future<void> _onTypingIndicatorReceived(
+      TypingIndicatorReceived event,
+      Emitter<ChatState> emit,
+      ) async {
+    // Update typing status map
+    _typingUsers[event.userId] = event.isTyping;
+
+    final currentState = state;
+
+    // Update UI if we're viewing a conversation with this user
+    if (currentState is ChatMessagesLoaded &&
+        currentState.conversationId == event.conversationId) {
+
+      emit(currentState.copyWith(
+        isOtherUserTyping: event.isTyping,
       ));
     }
   }
