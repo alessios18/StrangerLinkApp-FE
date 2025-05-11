@@ -1,6 +1,7 @@
 // lib/blocs/chat_detail/chat_detail_bloc.dart
 import 'dart:async';
 import 'dart:io';
+
 import 'package:bloc/bloc.dart';
 import 'package:equatable/equatable.dart';
 import 'package:stranger_link_app/blocs/chat/chat_bloc.dart' as chat;
@@ -189,7 +190,12 @@ class ChatDetailBloc extends Bloc<ChatDetailEvent, ChatDetailState> {
       bool found = false;
 
       for (final message in currentState.messages) {
-        if (message.id == event.message.id) {
+        final bool isSameMessage =
+            (message.id != null && message.id == event.message.id) ||
+                (message.id == null &&
+                    message.senderId == event.message.senderId &&
+                    message.timestamp.difference(event.message.timestamp).abs() < Duration(seconds: 1));
+        if (isSameMessage) {
           print("🔄 Trovato messaggio ${message.id} da aggiornare a ${event.message.status}");
           updatedMessages.add(event.message);
           found = true;
