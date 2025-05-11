@@ -313,6 +313,21 @@ class ChatRepository {
     }
   }
 
+  void sendDeliveryReceipt(int conversationId) {
+    if (_stompClient?.connected ?? false) {
+      try {
+        _stompClient?.send(
+          destination: '/app/chat.delivered',
+          body: jsonEncode({
+            'conversationId': conversationId,
+          }),
+        );
+      } catch (e) {
+        print('Failed to send delivery receipt: $e');
+      }
+    }
+  }
+
   Future<Message> sendMessage(Message message) async {
     final token = await _storageService.getToken();
     if (token == null) {

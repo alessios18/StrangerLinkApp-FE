@@ -70,6 +70,10 @@ class ChatDetailBloc extends Bloc<ChatDetailEvent, ChatDetailState> {
       // Wait for messages to load from ChatBloc
       final messages = await chatRepository.getMessages(event.conversationId);
 
+      if (event.conversationId > 0) {
+        chatRepository.sendDeliveryReceipt(event.conversationId);
+      }
+
       emit(ChatDetailLoaded(
         conversationId: event.conversationId,
         otherUserId: event.otherUserId,

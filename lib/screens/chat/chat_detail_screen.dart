@@ -547,7 +547,11 @@ class _ChatDetailViewState extends State<_ChatDetailView> {
                   Icon(
                     _getStatusIcon(message.status),
                     size: 12,
-                    color: Colors.white70,
+                    color: message.status == MessageStatus.READ
+                        ? Colors.blue // Blue ticks for read
+                        : message.status == MessageStatus.DELIVERED
+                        ? Colors.white70 // White ticks for delivered
+                        : Colors.white54, // Light white for sent
                   ),
                 ],
               ],
@@ -585,13 +589,13 @@ class _ChatDetailViewState extends State<_ChatDetailView> {
   IconData _getStatusIcon(MessageStatus status) {
     switch (status) {
       case MessageStatus.SENT:
-        return Icons.check;
+        return Icons.check; // Single check mark
       case MessageStatus.DELIVERED:
-        return Icons.done_all;
+        return Icons.done_all; // Double check mark (outline)
       case MessageStatus.READ:
-        return Icons.done_all;
+        return Icons.done_all; // Double check mark (filled)
       default:
-        return Icons.access_time;
+        return Icons.access_time; // Clock icon for pending
     }
   }
 
