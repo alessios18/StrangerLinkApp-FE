@@ -29,6 +29,12 @@ class ChatDetailBloc extends Bloc<ChatDetailEvent, ChatDetailState> {
     on<UserStatusChanged>(_onUserStatusChanged);
     on<SelectImage>(_onSelectImage);
     on<ClearSelectedImage>(_onClearSelectedImage);
+    on<MessageStatusChanged>(_onMessageStatusChanged);
+
+    chatRepository.onMessageStatusChanged = (message) {
+      print('ChatDetailBloc: Ricevuto aggiornamento stato messaggio: ${message.id} -> ${message.status}');
+      add(MessageStatusChanged(message));
+    };
 
     // Listen to ChatBloc for relevant updates
     chatBlocSubscription = chatBloc.stream.listen((chatState) {
@@ -57,21 +63,13 @@ class ChatDetailBloc extends Bloc<ChatDetailEvent, ChatDetailState> {
       Emitter<ChatDetailState> emit,
       ) async {
     emit(ChatDetailLoading());
-
     try {
-      // Request messages through ChatBloc
-      chatBloc.add(chat.LoadMessages(event.conversationId, event.otherUserId));
-
-      // Mark messages as read
-      if (event.conversationId > 0) {
-        chatBloc.add(chat.MarkMessagesAsRead(event.conversationId));
-      }
-
-      // Wait for messages to load from ChatBloc
       final messages = await chatRepository.getMessages(event.conversationId);
 
+      // Questo deve essere eseguito dopo aver caricato i messaggi
       if (event.conversationId > 0) {
-        chatRepository.sendDeliveryReceipt(event.conversationId);
+        print("📱 Marcando messaggi come letti nella conversazione ${event.conversationId}");
+        await chatRepository.markMessagesAsRead(event.conversationId);
       }
 
       emit(ChatDetailLoaded(
@@ -79,9 +77,6 @@ class ChatDetailBloc extends Bloc<ChatDetailEvent, ChatDetailState> {
         otherUserId: event.otherUserId,
         messages: messages,
         hasMoreMessages: messages.length >= 20,
-        isOtherUserTyping: false,
-        isOtherUserOnline: false,
-        selectedImage: null,
       ));
     } catch (e) {
       emit(ChatDetailError(e.toString()));
@@ -162,6 +157,39 @@ class ChatDetailBloc extends Bloc<ChatDetailEvent, ChatDetailState> {
         emit(ChatDetailError('Failed to send message: ${e.toString()}'));
         emit(currentState);
       }
+    }
+  }
+
+  Future<void> _onMessageStatusChanged(
+      MessageStatusChanged event,
+      Emitter<ChatDetailState> emit,
+      ) async {
+    print("🔄 Elaborando aggiornamento stato per messaggio ${event.message.id}");
+    if (state is ChatDetailLoaded) {
+      final currentState = state as ChatDetailLoaded;
+
+      // Crea una nuova lista di messaggi per forzare l'aggiornamento
+      final List<Message> updatedMessages = [];
+      bool found = false;
+
+      for (final message in currentState.messages) {
+        if (message.id == event.message.id) {
+          print("🔄 Trovato messaggio ${message.id} da aggiornare a ${event.message.status}");
+          updatedMessages.add(event.message);
+          found = true;
+        } else {
+          updatedMessages.add(message);
+        }
+      }
+
+      if (found) {
+        print("🔄 Emetto nuovo stato con messaggio aggiornato");
+        emit(currentState.copyWith(messages: updatedMessages));
+      } else {
+        print("❌ Messaggio ${event.message.id} non trovato nella conversazione");
+      }
+    } else {
+      print("❌ Stato non è ChatDetailLoaded, impossibile aggiornare");
     }
   }
 

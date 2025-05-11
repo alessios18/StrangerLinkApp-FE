@@ -547,11 +547,7 @@ class _ChatDetailViewState extends State<_ChatDetailView> {
                   Icon(
                     _getStatusIcon(message.status),
                     size: 12,
-                    color: message.status == MessageStatus.READ
-                        ? Colors.blue // Blue ticks for read
-                        : message.status == MessageStatus.DELIVERED
-                        ? Colors.white70 // White ticks for delivered
-                        : Colors.white54, // Light white for sent
+                    color: _getStatusColor(message.status,isFromMe),
                   ),
                 ],
               ],
@@ -562,6 +558,16 @@ class _ChatDetailViewState extends State<_ChatDetailView> {
     );
   }
 
+  Color _getStatusColor(MessageStatus status,bool isFromMe) {
+    switch (status) {
+      case MessageStatus.READ:
+        return Colors.blue;
+      case MessageStatus.DELIVERED:
+        return isFromMe ? Colors.white70 : Colors.grey[600]!;
+      default:
+        return isFromMe ? Colors.white54 : Colors.grey[400]!;
+    }
+  }
   void _showFullImage(BuildContext context, String imageUrl) {
     Navigator.push(
       context,

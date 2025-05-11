@@ -72,41 +72,38 @@ class ChatRepository {
                     final message = Message.fromJson(jsonDecode(frame.body!));
                     print('【WebSocket】 Messaggio decodificato: ${message.id}, ${message.content}');
 
+                    // Invia ricevuta di consegna
+                    if (message.conversationId > 0) {
+                      sendDeliveryReceipt(message.conversationId);
+                    }
+
                     if (onMessageReceived != null) {
-                      print('【WebSocket】 Chiamata a onMessageReceived');
                       onMessageReceived!(message);
-                    } else {
-                      print('【WebSocket】 ERRORE: onMessageReceived è null!');
                     }
                   } catch (e) {
                     print('【WebSocket】 ERRORE nel parsing del messaggio: $e');
-                    print('【WebSocket】 Corpo del messaggio: ${frame.body}');
                   }
-                } else {
-                  print('【WebSocket】 Frame ricevuto con body null');
                 }
               },
             );
 
-            // Sottoscrizione per aggiornamenti di stato dei messaggi
-            print('【WebSocket】 Sottoscrizione a /user/$userId/queue/message-status');
             _stompClient?.subscribe(
               destination: '/user/$userId/queue/message-status',
               callback: (StompFrame frame) {
-                print('【WebSocket】 RICEVUTO STATO MESSAGGIO: ${frame.body}');
+                print('⚠️⚠️⚠️ RICEVUTO AGGIORNAMENTO STATO: ${frame.body}');
                 if (frame.body != null) {
                   try {
                     final message = Message.fromJson(jsonDecode(frame.body!));
+                    print('⚠️⚠️⚠️ Messaggio ${message.id} ora è ${message.status} ⚠️⚠️⚠️');
                     if (onMessageStatusChanged != null) {
                       onMessageStatusChanged!(message);
                     }
                   } catch (e) {
-                    print('【WebSocket】 ERRORE nel parsing dello stato messaggio: $e');
+                    print('Errore: $e');
                   }
                 }
               },
             );
-
             // Sottoscrizione per notifiche di stato utente
             print('【WebSocket】 Sottoscrizione a /user/$userId/queue/user-status');
             _stompClient?.subscribe(
@@ -316,15 +313,19 @@ class ChatRepository {
   void sendDeliveryReceipt(int conversationId) {
     if (_stompClient?.connected ?? false) {
       try {
+        print('【WebSocket】 Invio notifica di consegna per conversazione: $conversationId');
         _stompClient?.send(
           destination: '/app/chat.delivered',
           body: jsonEncode({
             'conversationId': conversationId,
+            'userId': _userId  // Aggiungi l'ID dell'utente corrente
           }),
         );
       } catch (e) {
-        print('Failed to send delivery receipt: $e');
+        print('【WebSocket】 ERRORE invio ricevuta di consegna: $e');
       }
+    } else {
+      print('【WebSocket】 Impossibile inviare ricevuta: WebSocket non connesso');
     }
   }
 
@@ -420,6 +421,7 @@ class ChatRepository {
     }
 
     try {
+      print("📱 Chiamata API per marcare come letti: $baseUrl/chat/conversations/$conversationId/read");
       final response = await http.post(
         Uri.parse('$baseUrl/chat/conversations/$conversationId/read'),
         headers: {
@@ -428,10 +430,12 @@ class ChatRepository {
         },
       );
 
+      print("📱 Risposta markMessagesAsRead: ${response.statusCode}");
       if (response.statusCode != 200) {
         throw Exception('Failed to mark messages as read: ${response.statusCode}');
       }
     } catch (e) {
+      print("📱 Errore markMessagesAsRead: $e");
       throw Exception('Failed to mark messages as read: $e');
     }
   }

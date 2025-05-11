@@ -91,6 +91,15 @@ class SelectImage extends ChatDetailEvent {
   List<Object?> get props => [imageFile];
 }
 
+class MessageStatusChanged extends ChatDetailEvent {
+  final Message message;
+
+  const MessageStatusChanged(this.message);
+
+  @override
+  List<Object?> get props => [message];
+}
+
 class ClearSelectedImage extends ChatDetailEvent {
   const ClearSelectedImage();
 }
